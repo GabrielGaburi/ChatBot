@@ -476,11 +476,10 @@
       const message = input.value.trim();
       if (!message) return;
 
-      addMessage(message, "user");
       input.value = "";
 
       if (atendimentoHumano) {
-        // apenas guarda no servidor, humano responderá
+        // 🔥 NÃO chama addMessage aqui para evitar duplicado
         await fetch("/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -489,6 +488,8 @@
         return;
       }
 
+      // ✅ Fora do modo humano, mostra imediatamente e processa IA
+      addMessage(message, "user");
       showTypingIndicator();
       try {
         const response = await fetch("/send", {
@@ -505,25 +506,36 @@
       }
     }
 
+
+
     let mensagensRenderizadas = 0;
 
+
+
     function iniciarPollingHumano() {
-      mensagensRenderizadas = 0; // começa sem mensagens contadas
+      mensagensRenderizadas = 0; // zera o contador toda vez que começar a esperar profissional
       setInterval(async () => {
         if (!atendimentoHumano) return;
-        const sessionId = getSessionId();
-        const resp = await fetch(`/mensagens/${sessionId}`);
-        const mensagens = await resp.json();
+        try {
+          const sessionId = getSessionId();
+          const resp = await fetch(`/mensagens/${sessionId}`);
+          const mensagens = await resp.json();
 
-        // só adiciona mensagens novas
-        if (mensagens.length > mensagensRenderizadas) {
-          for (let i = mensagensRenderizadas; i < mensagens.length; i++) {
-            addMessage(mensagens[i].text, mensagens[i].sender);
+          // Adiciona apenas mensagens novas
+          if (mensagens.length > mensagensRenderizadas) {
+            for (let i = mensagensRenderizadas; i < mensagens.length; i++) {
+              // adiciona tudo (user, bot e human) sem apagar o chat
+              addMessage(mensagens[i].text, mensagens[i].sender);
+            }
+            mensagensRenderizadas = mensagens.length;
           }
-          mensagensRenderizadas = mensagens.length;
+        } catch (err) {
+          console.error("Erro ao buscar mensagens:", err);
         }
       }, 3000);
     }
+
+
     function toggleDarkMode(event) {
       event.stopPropagation();
       chatbox.classList.toggle("dark-mode");
