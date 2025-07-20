@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,7 +24,7 @@
       --dark-button-bg: #4b5563;
       --dark-button-text: #e5e7eb;
       --dark-button-hover-bg: #2d3748;
-      --dark-button-border: #ffffff; /* Borda branca no modo escuro */
+      --dark-button-border: #ffffff;
     }
 
     * {
@@ -47,7 +48,7 @@
       border-radius: 24px;
       font-size: 14px;
       cursor: pointer;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
       z-index: 9999;
       transition: background-color 0.3s ease;
     }
@@ -63,7 +64,7 @@
       width: 380px;
       height: 540px;
       border-radius: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
       display: none;
       flex-direction: column;
       background: white;
@@ -85,7 +86,7 @@
       text-align: center;
       position: relative;
       border-radius: 20px 20px 0 0;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
 
     .theme-toggle {
@@ -112,7 +113,6 @@
         right: 0;
       }
     }
-
 
     .chatbox-messages {
       flex: 1;
@@ -144,8 +144,14 @@
       }
     }
 
-    .bot-message { flex-direction: row; }
-    .user-message { flex-direction: row-reverse; align-self: flex-end; }
+    .bot-message {
+      flex-direction: row;
+    }
+
+    .user-message {
+      flex-direction: row-reverse;
+      align-self: flex-end;
+    }
 
     .avatar {
       width: 45px;
@@ -153,7 +159,7 @@
       border-radius: 50%;
       margin: 0 10px;
       object-fit: cover;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
 
     .message-content {
@@ -164,8 +170,7 @@
       color: var(--text);
       max-width: 250px;
       line-height: 1.4;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-      font-family: 'Rubik', sans-serif;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
       transition: background 0.3s ease, color 0.3s ease;
     }
 
@@ -194,7 +199,6 @@
       background: var(--dark-input);
     }
 
-    /* Modificação aqui: cor do texto na barra de entrada no modo escuro */
     .chatbox-input input {
       flex: 1;
       padding: 14px;
@@ -204,11 +208,11 @@
       background: transparent;
       color: inherit;
       border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
 
     .chatbox.dark-mode .chatbox-input input {
-      color: white; /* Texto branco no modo escuro */
+      color: white;
     }
 
     .chatbox-input button {
@@ -219,7 +223,7 @@
       cursor: pointer;
       border-radius: 12px;
       margin-left: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
 
     .chatbox-input button i {
@@ -243,7 +247,6 @@
       background: var(--dark-button-bg);
     }
 
-    /* Alteração no estilo dos botões de resposta rápida no modo escuro */
     .quick-replies button {
       background-color: var(--button-bg);
       border: 1px solid var(--button-border);
@@ -259,11 +262,10 @@
       gap: 8px;
     }
 
-    /* No modo escuro, mudar o fundo e o texto dos botões, e adicionar borda branca */
     .chatbox.dark-mode .quick-replies button {
       background: var(--dark-button-bg);
       color: var(--dark-button-text);
-      border: 2px solid var(--dark-button-border); /* Borda branca no modo escuro */
+      border: 2px solid var(--dark-button-border);
     }
 
     .quick-replies button:hover {
@@ -283,7 +285,6 @@
       border-top: 1px solid #e5e7eb;
     }
 
-    /* Animação de digitação (typing dots) */
     .typing-indicator {
       display: flex;
       align-items: center;
@@ -315,22 +316,26 @@
     }
 
     @keyframes typing {
-      0%, 60%, 100% {
+
+      0%,
+      60%,
+      100% {
         transform: translateY(0);
         opacity: 0.4;
       }
+
       30% {
         transform: translateY(-10px);
         opacity: 1;
       }
     }
 
-    /* Dark mode para o indicador de digitação */
     .chatbox.dark-mode .typing-indicator {
       background: var(--dark-bot-bg);
     }
   </style>
 </head>
+
 <body>
 
   <button id="chat-toggle"><i class="fas fa-comment-dots"></i> Precisa de ajuda?</button>
@@ -344,7 +349,9 @@
 
     <div class="quick-replies" id="quickReplies">
       <button onclick="quickReply('Estou viciado em apostas.')">🎯 <span>Estou viciado em apostas.</span></button>
-      <button onclick="quickReply('Alguém próximo a mim está com problemas de vícios.')">👥 <span>Alguém próximo a mim está com problemas de vícios.</span></button>
+      <button onclick="quickReply('Alguém próximo a mim está com problemas de vícios.')">👥 <span>Alguém próximo a mim
+          está com problemas de vícios.</span></button>
+      <button onclick="transferToHuman()">🧑‍⚕️ <span>Falar com um profissional</span></button>
     </div>
 
     <div class="chatbox-input">
@@ -358,7 +365,19 @@
     const chatbox = document.getElementById("chatbox");
     const toggleBtn = document.getElementById("chat-toggle");
     const chat = document.getElementById("chat");
+    let atendimentoHumano = false; // controle local
 
+    // gera ou recupera id único da sessão
+    function getSessionId() {
+      let id = sessionStorage.getItem("session_id");
+      if (!id) {
+        id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+        sessionStorage.setItem("session_id", id);
+      }
+      return id;
+    }
+
+    // abrir/fechar chat
     toggleBtn.addEventListener("click", () => {
       chatbox.classList.toggle("active");
       toggleBtn.innerHTML = chatbox.classList.contains("active")
@@ -367,9 +386,7 @@
     });
 
     function scrollToBottom() {
-      setTimeout(() => {
-        chat.scrollTop = chat.scrollHeight;
-      }, 50);
+      setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 50);
     }
 
     function typeEffect(element, text, delay = 30) {
@@ -381,7 +398,6 @@
           scrollToBottom();
         } else {
           clearInterval(interval);
-          scrollToBottom();
         }
       }, delay);
     }
@@ -390,64 +406,67 @@
       const typingMsg = document.createElement("div");
       typingMsg.className = "message bot-message";
       typingMsg.id = "typing-indicator";
-      
       const avatar = document.createElement("img");
       avatar.className = "avatar";
       avatar.src = "/static/caozinho.jpg";
-      
       const typingIndicator = document.createElement("div");
       typingIndicator.className = "typing-indicator";
-      
       for (let i = 0; i < 3; i++) {
         const dot = document.createElement("div");
         dot.className = "typing-dot";
         typingIndicator.appendChild(dot);
       }
-      
       typingMsg.appendChild(avatar);
       typingMsg.appendChild(typingIndicator);
       chat.appendChild(typingMsg);
       scrollToBottom();
-      
-      return typingMsg;
     }
 
     function hideTypingIndicator() {
       const typingIndicator = document.getElementById("typing-indicator");
-      if (typingIndicator) {
-        typingIndicator.remove();
-      }
+      if (typingIndicator) typingIndicator.remove();
     }
 
     function addMessage(text, type = "bot") {
       const msg = document.createElement("div");
       msg.className = `message ${type}-message`;
-
       const avatar = document.createElement("img");
       avatar.className = "avatar";
       avatar.src = type === "user" ? "/static/dog.png" : "/static/caozinho.jpg";
-
       const content = document.createElement("div");
       content.className = "message-content";
-
       msg.appendChild(avatar);
       msg.appendChild(content);
       chat.appendChild(msg);
-      scrollToBottom();
-
       if (type === "bot") {
         typeEffect(content, text);
       } else {
         content.textContent = text;
-        scrollToBottom();
       }
+      scrollToBottom();
     }
 
     function quickReply(text) {
-      const quickReplies = document.getElementById("quickReplies");
-      if (quickReplies) quickReplies.style.display = "none";
+      document.getElementById("quickReplies").style.display = "none";
       document.getElementById("userInput").value = text;
       sendMessage();
+    }
+
+    async function transferToHuman() {
+      document.getElementById("quickReplies").style.display = "none";
+      atendimentoHumano = true; // marca que agora é humano
+      try {
+        await fetch("/transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: message, session_id: getSessionId() })
+
+        });
+        addMessage("Você será atendido por um profissional em instantes.", "bot");
+        iniciarPollingHumano();
+      } catch (error) {
+        addMessage("Não foi possível solicitar um profissional agora.", "bot");
+      }
     }
 
     async function sendMessage() {
@@ -458,23 +477,46 @@
       addMessage(message, "user");
       input.value = "";
 
-      // Mostrar indicador de digitação
-      showTypingIndicator();
+      if (atendimentoHumano) {
+        // apenas guarda no servidor, humano responderá
+        await fetch("/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: message, session_id: getSessionId() })
+        });
+        return;
+      }
 
+      showTypingIndicator();
       try {
         const response = await fetch("/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message })
+          body: JSON.stringify({ message: message, session_id: getSessionId() })
         });
-
         const data = await response.json();
-        hideTypingIndicator(); // Esconder indicador antes de adicionar a resposta
+        hideTypingIndicator();
         addMessage(data.reply, "bot");
       } catch (error) {
-        hideTypingIndicator(); // Esconder indicador mesmo em caso de erro
+        hideTypingIndicator();
         addMessage("Erro ao se comunicar com o servidor.", "bot");
       }
+    }
+
+    function iniciarPollingHumano() {
+      // verifica novas mensagens do profissional a cada 3s
+      setInterval(async () => {
+        if (!atendimentoHumano) return;
+        const sessionId = getSessionId();
+        const resp = await fetch(`/mensagens/${sessionId}`);
+        const mensagens = await resp.json();
+
+        // limpa e redesenha apenas se tiver mensagens
+        chat.innerHTML = "";
+        mensagens.forEach(m => {
+          addMessage(m.text, m.sender);
+        });
+      }, 3000);
     }
 
     function toggleDarkMode(event) {
@@ -505,6 +547,7 @@
       if (e.key === "Enter") sendMessage();
     });
   </script>
-</body>
-</html>
 
+</body>
+
+</html>

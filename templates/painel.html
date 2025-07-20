@@ -1,0 +1,124 @@
+<script>
+    const chatbox = document.getElementById("chatbox");
+    const toggleBtn = document.getElementById("chat-toggle");
+    const chat = document.getElementById("chat");
+    let atendimentoHumano = false;
+
+    function getSessionId() {
+        let id = sessionStorage.getItem("session_id");
+        if (!id) {
+            id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+            sessionStorage.setItem("session_id", id);
+        }
+        return id;
+    }
+
+    toggleBtn.addEventListener("click", () => {
+        chatbox.classList.toggle("active");
+        toggleBtn.innerHTML = chatbox.classList.contains("active")
+            ? '<i class="fas fa-times"></i> Fechar chat'
+            : '<i class="fas fa-comment-dots"></i> Precisa de ajuda?';
+    });
+
+    function scrollToBottom() {
+        setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 50);
+    }
+
+    function addMessage(text, type = "bot") {
+        const msg = document.createElement("div");
+        msg.className = `message ${type}-message`;
+        const avatar = document.createElement("img");
+        avatar.className = "avatar";
+        avatar.src = type === "user" ? "/static/dog.png" : "/static/caozinho.jpg";
+        const content = document.createElement("div");
+        content.className = "message-content";
+        content.textContent = text;
+        msg.appendChild(avatar);
+        msg.appendChild(content);
+        chat.appendChild(msg);
+        scrollToBottom();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById("userInput");
+        const message = input.value.trim();
+        if (!message) return;
+
+        addMessage(message, "user");
+        input.value = "";
+
+        // envia para o back com session_id
+        try {
+            const response = await fetch("/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: message, session_id: getSessionId() })
+            });
+            const data = await response.json();
+            addMessage(data.reply, "bot");
+        } catch (error) {
+            addMessage("Erro ao se comunicar com o servidor.", "bot");
+        }
+    }
+
+    function quickReply(text) {
+        document.getElementById("quickReplies").style.display = "none";
+        document.getElementById("userInput").value = text;
+        sendMessage();
+    }
+
+    async function transferToHuman() {
+        document.getElementById("quickReplies").style.display = "none";
+        atendimentoHumano = true;
+        try {
+            await fetch("/transfer", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: getSessionId() })
+            });
+            addMessage("Você será atendido por um profissional em instantes.", "bot");
+            startPollingMessages();
+        } catch (error) {
+            addMessage("Não foi possível solicitar um profissional agora.", "bot");
+        }
+    }
+
+    // Polling para mensagens novas quando em atendimento humano
+    function startPollingMessages() {
+        setInterval(async () => {
+            if (!atendimentoHumano) return;
+            const resp = await fetch(`/mensagens/${getSessionId()}`);
+            const mensagens = await resp.json();
+            // limpa e redesenha
+            chat.innerHTML = "";
+            mensagens.forEach(m => addMessage(m.text, m.sender));
+        }, 3000);
+    }
+
+    // Tema escuro/claro
+    function toggleDarkMode(event) {
+        event.stopPropagation();
+        chatbox.classList.toggle("dark-mode");
+        const isDark = chatbox.classList.contains("dark-mode");
+        localStorage.setItem("chat-dark-mode", isDark);
+        updateThemeIcon(isDark);
+    }
+    function loadTheme() {
+        const isDark = localStorage.getItem("chat-dark-mode") === "true";
+        if (isDark) chatbox.classList.add("dark-mode");
+        updateThemeIcon(isDark);
+    }
+    function updateThemeIcon(isDark) {
+        const iconBtn = document.querySelector(".theme-toggle");
+        iconBtn.textContent = isDark ? "🌞" : "🌙";
+    }
+
+    window.addEventListener("load", () => {
+        loadTheme();
+        addMessage("Precisa de ajuda ou quer conversar?", "bot");
+    });
+
+    document.getElementById("userInput").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") sendMessage();
+    });
+</script>
