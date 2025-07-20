@@ -1,124 +1,251 @@
-<script>
-    const chatbox = document.getElementById("chatbox");
-    const toggleBtn = document.getElementById("chat-toggle");
-    const chat = document.getElementById("chat");
-    let atendimentoHumano = false;
+<!DOCTYPE html>
+<html lang="pt-BR">
 
-    function getSessionId() {
-        let id = sessionStorage.getItem("session_id");
-        if (!id) {
-            id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
-            sessionStorage.setItem("session_id", id);
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel do Profissional</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f4f6;
+            margin: 0;
+            padding: 0;
         }
-        return id;
-    }
 
-    toggleBtn.addEventListener("click", () => {
-        chatbox.classList.toggle("active");
-        toggleBtn.innerHTML = chatbox.classList.contains("active")
-            ? '<i class="fas fa-times"></i> Fechar chat'
-            : '<i class="fas fa-comment-dots"></i> Precisa de ajuda?';
-    });
-
-    function scrollToBottom() {
-        setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 50);
-    }
-
-    function addMessage(text, type = "bot") {
-        const msg = document.createElement("div");
-        msg.className = `message ${type}-message`;
-        const avatar = document.createElement("img");
-        avatar.className = "avatar";
-        avatar.src = type === "user" ? "/static/dog.png" : "/static/caozinho.jpg";
-        const content = document.createElement("div");
-        content.className = "message-content";
-        content.textContent = text;
-        msg.appendChild(avatar);
-        msg.appendChild(content);
-        chat.appendChild(msg);
-        scrollToBottom();
-    }
-
-    async function sendMessage() {
-        const input = document.getElementById("userInput");
-        const message = input.value.trim();
-        if (!message) return;
-
-        addMessage(message, "user");
-        input.value = "";
-
-        // envia para o back com session_id
-        try {
-            const response = await fetch("/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: message, session_id: getSessionId() })
-            });
-            const data = await response.json();
-            addMessage(data.reply, "bot");
-        } catch (error) {
-            addMessage("Erro ao se comunicar com o servidor.", "bot");
+        header {
+            background: #4f46e5;
+            color: #fff;
+            padding: 16px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
         }
-    }
 
-    function quickReply(text) {
-        document.getElementById("quickReplies").style.display = "none";
-        document.getElementById("userInput").value = text;
-        sendMessage();
-    }
-
-    async function transferToHuman() {
-        document.getElementById("quickReplies").style.display = "none";
-        atendimentoHumano = true;
-        try {
-            await fetch("/transfer", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: getSessionId() })
-            });
-            addMessage("Você será atendido por um profissional em instantes.", "bot");
-            startPollingMessages();
-        } catch (error) {
-            addMessage("Não foi possível solicitar um profissional agora.", "bot");
+        main {
+            display: flex;
+            height: calc(100vh - 60px);
         }
-    }
 
-    // Polling para mensagens novas quando em atendimento humano
-    function startPollingMessages() {
-        setInterval(async () => {
-            if (!atendimentoHumano) return;
-            const resp = await fetch(`/mensagens/${getSessionId()}`);
-            const mensagens = await resp.json();
-            // limpa e redesenha
-            chat.innerHTML = "";
-            mensagens.forEach(m => addMessage(m.text, m.sender));
-        }, 3000);
-    }
+        .sidebar {
+            width: 250px;
+            background: #fff;
+            border-right: 1px solid #ddd;
+            padding: 16px;
+            overflow-y: auto;
+        }
 
-    // Tema escuro/claro
-    function toggleDarkMode(event) {
-        event.stopPropagation();
-        chatbox.classList.toggle("dark-mode");
-        const isDark = chatbox.classList.contains("dark-mode");
-        localStorage.setItem("chat-dark-mode", isDark);
-        updateThemeIcon(isDark);
-    }
-    function loadTheme() {
-        const isDark = localStorage.getItem("chat-dark-mode") === "true";
-        if (isDark) chatbox.classList.add("dark-mode");
-        updateThemeIcon(isDark);
-    }
-    function updateThemeIcon(isDark) {
-        const iconBtn = document.querySelector(".theme-toggle");
-        iconBtn.textContent = isDark ? "🌞" : "🌙";
-    }
+        .sidebar h3 {
+            margin-top: 0;
+        }
 
-    window.addEventListener("load", () => {
-        loadTheme();
-        addMessage("Precisa de ajuda ou quer conversar?", "bot");
-    });
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
 
-    document.getElementById("userInput").addEventListener("keydown", function (e) {
-        if (e.key === "Enter") sendMessage();
-    });
-</script>
+        .sidebar li {
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #f9f9f9;
+            transition: background 0.2s;
+        }
+
+        .sidebar li:hover {
+            background: #e0e7ff;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 12px;
+            background: #eef2ff;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+
+        .chat-messages p {
+            margin: 6px 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .user-msg {
+            background: #d1fae5;
+            align-self: flex-start;
+        }
+
+        .bot-msg {
+            background: #e0e7ff;
+            align-self: flex-start;
+        }
+
+        .prof-msg {
+            background: #fbbf24;
+            align-self: flex-end;
+        }
+
+        .chat-input {
+            padding: 10px;
+            display: flex;
+            border-top: 1px solid #ddd;
+            background: #fff;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .chat-input button {
+            margin-left: 8px;
+            background: #4f46e5;
+            color: #fff;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .chat-input button:hover {
+            background: #4338ca;
+        }
+
+        .empty-state {
+            padding: 20px;
+            text-align: center;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <header>Painel do Profissional</header>
+    <main>
+        <div class="sidebar">
+            <h3>Sessões aguardando</h3>
+            <ul id="sessoes"></ul>
+            <button onclick="carregarSessoes()" style="margin-top:10px;">🔄 Atualizar lista</button>
+        </div>
+        <div class="chat-area">
+            <div class="chat-header" id="chatHeader">Nenhuma sessão selecionada</div>
+            <div class="chat-messages" id="mensagens">
+                <div class="empty-state">Selecione uma sessão à esquerda para começar.</div>
+            </div>
+            <div class="chat-input">
+                <input type="text" id="msgProf" placeholder="Digite sua resposta..." disabled />
+                <button onclick="enviarProf()" id="btnEnviar" disabled>Enviar</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let sessaoSelecionada = null;
+        let intervaloMensagens = null;
+
+        async function carregarSessoes() {
+            try {
+                const lista = await fetch("/lista_sessoes").then(r => r.json());
+                const ul = document.getElementById("sessoes");
+                ul.innerHTML = "";
+                if (lista.length === 0) {
+                    ul.innerHTML = "<li>Nenhuma sessão aguardando.</li>";
+                } else {
+                    lista.forEach(id => {
+                        const li = document.createElement("li");
+                        li.textContent = id;
+                        li.onclick = () => selecionarSessao(id);
+                        ul.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                console.error("Erro ao carregar sessões:", err);
+            }
+        }
+
+        function selecionarSessao(id) {
+            sessaoSelecionada = id;
+            document.getElementById("chatHeader").textContent = `Atendendo sessão: ${id}`;
+            document.getElementById("msgProf").disabled = false;
+            document.getElementById("btnEnviar").disabled = false;
+            if (intervaloMensagens) clearInterval(intervaloMensagens);
+            atualizarMensagens();
+            intervaloMensagens = setInterval(atualizarMensagens, 3000);
+        }
+
+        async function atualizarMensagens() {
+            if (!sessaoSelecionada) return;
+            try {
+                const msgs = await fetch(`/mensagens/${sessaoSelecionada}`).then(r => r.json());
+                const container = document.getElementById("mensagens");
+                container.innerHTML = "";
+                msgs.forEach(m => {
+                    const p = document.createElement("p");
+                    if (m.sender === "user") {
+                        p.textContent = `Usuário: ${m.text}`;
+                        p.className = "user-msg";
+                    } else if (m.sender === "bot") {
+                        p.textContent = `Bot: ${m.text}`;
+                        p.className = "bot-msg";
+                    } else if (m.sender === "human") {
+                        p.textContent = `Você: ${m.text}`;
+                        p.className = "prof-msg";
+                    }
+                    container.appendChild(p);
+                });
+                container.scrollTop = container.scrollHeight;
+            } catch (err) {
+                console.error("Erro ao atualizar mensagens:", err);
+            }
+        }
+
+        async function enviarProf() {
+            const texto = document.getElementById("msgProf").value.trim();
+            if (!texto || !sessaoSelecionada) return;
+            try {
+                await fetch(`/enviar_profissional/${sessaoSelecionada}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: texto })
+                });
+                document.getElementById("msgProf").value = "";
+                atualizarMensagens();
+            } catch (err) {
+                console.error("Erro ao enviar mensagem:", err);
+            }
+        }
+
+        // Carregar lista inicial ao abrir
+        window.onload = carregarSessoes;
+
+        // Enviar com Enter
+        document.getElementById("msgProf").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                enviarProf();
+            }
+        });
+
+    </script>
+</body>
+
+</html>

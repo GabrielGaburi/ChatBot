@@ -377,6 +377,8 @@
       return id;
     }
 
+
+
     // abrir/fechar chat
     toggleBtn.addEventListener("click", () => {
       chatbox.classList.toggle("active");
@@ -459,9 +461,9 @@
         await fetch("/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: message, session_id: getSessionId() })
-
+          body: JSON.stringify({ session_id: getSessionId() })
         });
+
         addMessage("Você será atendido por um profissional em instantes.", "bot");
         iniciarPollingHumano();
       } catch (error) {
@@ -503,22 +505,25 @@
       }
     }
 
+    let mensagensRenderizadas = 0;
+
     function iniciarPollingHumano() {
-      // verifica novas mensagens do profissional a cada 3s
+      mensagensRenderizadas = 0; // começa sem mensagens contadas
       setInterval(async () => {
         if (!atendimentoHumano) return;
         const sessionId = getSessionId();
         const resp = await fetch(`/mensagens/${sessionId}`);
         const mensagens = await resp.json();
 
-        // limpa e redesenha apenas se tiver mensagens
-        chat.innerHTML = "";
-        mensagens.forEach(m => {
-          addMessage(m.text, m.sender);
-        });
+        // só adiciona mensagens novas
+        if (mensagens.length > mensagensRenderizadas) {
+          for (let i = mensagensRenderizadas; i < mensagens.length; i++) {
+            addMessage(mensagens[i].text, mensagens[i].sender);
+          }
+          mensagensRenderizadas = mensagens.length;
+        }
       }, 3000);
     }
-
     function toggleDarkMode(event) {
       event.stopPropagation();
       chatbox.classList.toggle("dark-mode");
