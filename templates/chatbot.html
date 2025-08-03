@@ -434,7 +434,14 @@
       msg.className = `message ${type}-message`;
       const avatar = document.createElement("img");
       avatar.className = "avatar";
-      avatar.src = type === "user" ? "/static/dog.png" : "/static/caozinho.jpg";
+      if (type === "user") {
+        avatar.src = "/static/dog.png";
+      } else if (type === "human") {
+        avatar.src = "/static/images.png"; // Foto do profissional
+      } else {
+        avatar.src = "/static/caozinho.jpg"; // IA
+      }
+
       const content = document.createElement("div");
       content.className = "message-content";
       msg.appendChild(avatar);
@@ -454,6 +461,7 @@
       sendMessage();
     }
 
+
     async function transferToHuman() {
       document.getElementById("quickReplies").style.display = "none";
       atendimentoHumano = true; // marca que agora é humano
@@ -463,8 +471,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: getSessionId() })
         });
-
-        addMessage("Você será atendido por um profissional em instantes.", "bot");
+        mensagensRenderizadas = 0;
         iniciarPollingHumano();
       } catch (error) {
         addMessage("Não foi possível solicitar um profissional agora.", "bot");
@@ -555,14 +562,40 @@
       iconBtn.textContent = isDark ? "🌞" : "🌙";
     }
 
-    window.addEventListener("load", () => {
+    window.addEventListener("load", async () => {
       loadTheme();
-      addMessage("Precisa de ajuda ou quer conversar?", "bot");
+
+      // 💥 Remove session_id salvo para começar do zero
+      sessionStorage.removeItem("session_id");
+
+      const sessionId = getSessionId(); // novo ID gerado
+
+      // Verifica status da nova sessão
+      const res = await fetch(`/status_sessao/${sessionId}`);
+      const data = await res.json();
+
+      if (data.humano) {
+        atendimentoHumano = true;
+        iniciarPollingHumano();
+        addMessage("Você será atendido por um profissional em instantes.", "bot");
+      } else {
+        chat.innerHTML = "";
+        mensagensRenderizadas = 0;
+        addMessage("Precisa de ajuda ou quer conversar?", "bot");
+      }
     });
 
-    document.getElementById("userInput").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") sendMessage();
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("userInput").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault(); // impede quebra de linha
+          sendMessage();      // chama a função para enviar a mensagem
+        }
+      });
     });
+
+
+
   </script>
 
 </body>

@@ -155,12 +155,90 @@
                 <input type="text" id="msgProf" placeholder="Digite sua resposta..." disabled />
                 <button onclick="enviarProf()" id="btnEnviar" disabled>Enviar</button>
             </div>
+
+            <div style="padding: 10px; text-align: center;">
+                <button onclick="encerrarAtendimento()"
+                    style="background: #dc2626; color: white; padding: 6px 12px; border: none; border-radius: 4px; margin-top: 6px;">
+                    🚫 Encerrar Atendimento
+                </button>
+            </div>
+
         </div>
     </main>
 
     <script>
         let sessaoSelecionada = null;
         let intervaloMensagens = null;
+
+        async function verPerfil() {
+            try {
+                const response = await fetch("/perfil/meu"); // Endpoint a ser criado no backend
+                const dados = await response.json();
+                alert(`Nome: ${dados.nome}\nEspecialidade: ${dados.especialidade}\nBio: ${dados.biografia}`);
+            } catch (error) {
+                alert("Erro ao carregar o perfil.");
+            }
+        }
+
+        // Fora de atualizarMensagens:
+        let ultimaQtde = 0;
+
+        async function atualizarMensagens() {
+            if (!sessaoSelecionada) return;
+            try {
+                const msgs = await fetch(`/mensagens/${sessaoSelecionada}`).then(r => r.json());
+                const container = document.getElementById("mensagens");
+                // Adiciona apenas mensagens novas
+                for (let i = ultimaQtde; i < msgs.length; i++) {
+                    const m = msgs[i];
+                    const p = document.createElement("p");
+                    if (m.sender === "user") {
+                        p.textContent = `Usuário: ${m.text}`;
+                        p.className = "user-msg";
+                    } else if (m.sender === "bot") {
+                        p.textContent = `Bot: ${m.text}`;
+                        p.className = "bot-msg";
+                    } else {
+                        p.textContent = `Você: ${m.text}`;
+                        p.className = "prof-msg";
+                    }
+                    container.appendChild(p);
+                }
+                ultimaQtde = msgs.length;
+                container.scrollTop = container.scrollHeight;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Ao selecionar uma sessão:
+        function selecionarSessao(id) {
+            sessaoSelecionada = id;
+            document.getElementById("chatHeader").textContent = `Atendimento: ${id}`;
+            document.getElementById("msgProf").disabled = false;
+            document.getElementById("btnEnviar").disabled = false;
+            const container = document.getElementById("mensagens");
+            container.innerHTML = "";
+            ultimaQtde = 0;
+            atualizarMensagens();
+            clearInterval(intervaloMensagens);
+            intervaloMensagens = setInterval(atualizarMensagens, 2000);
+        }
+
+        // Função para encerrar
+        async function encerrarAtendimento() {
+            if (!sessaoSelecionada) return;
+            // remove do set no backend: criar rota se desejar
+            await fetch(`/encerrar/${sessaoSelecionada}`, { method: "POST" });
+            sessaoSelecionada = null;
+            clearInterval(intervaloMensagens);
+            document.getElementById("chatHeader").textContent = "Nenhuma sessão selecionada";
+            document.getElementById("mensagens").innerHTML = `<div class="empty-state">Selecione uma sessão à esquerda para começar.</div>`;
+            document.getElementById("msgProf").disabled = true;
+            document.getElementById("btnEnviar").disabled = true;
+            carregarSessoes();
+        }
+
 
         async function carregarSessoes() {
             try {

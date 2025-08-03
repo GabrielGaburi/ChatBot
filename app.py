@@ -32,7 +32,6 @@ def mensagens(session_id):
     return jsonify(sessions.get(session_id, []))
 
 @app.route("/enviar_profissional/<session_id>", methods=["POST"])
-@app.route("/enviar_profissional/<session_id>", methods=["POST"])
 def enviar_profissional(session_id):
     data = request.get_json()
     texto = data.get("message", "").strip()
@@ -43,8 +42,24 @@ def enviar_profissional(session_id):
     print(f"[PROFISSIONAL] para {session_id}: {texto}")
     return jsonify({"ok": True})
 
+@app.route("/perfil/meu")
+def perfil_meu():
+    # Mock - substitua por dados reais depois
+    perfil = {
+        "nome": "Dr. Gabriel",
+        "especialidade": "Psicólogo Clínico",
+        "biografia": "Experiência no atendimento a vícios e suporte emocional."
+    }
+    return jsonify(perfil)
 
 # ---------------- APIs do usuário ---------------- #
+# ... (todo o código anterior igual)
+
+# ---------------- APIs do usuário ---------------- #
+@app.route("/status_sessao/<session_id>")
+def verificar_status_sessao(session_id):  # Nome diferente aqui
+    return jsonify({"humano": session_id in usuarios_humano})
+
 @app.route("/transfer", methods=["POST"])
 def transfer():
     data = request.get_json()
@@ -52,12 +67,8 @@ def transfer():
     if not session_id:
         return jsonify({"status": "error", "message": "session_id não informado"}), 400
 
-    # marca a sessão como aguardando humano
     usuarios_humano.add(session_id)
-
-    # garante que existe um histórico
     sessions.setdefault(session_id, [])
-    # adiciona uma mensagem de confirmação no histórico
     sessions[session_id].append({
         "sender": "bot",
         "text": "Você será atendido por um profissional em instantes. Aguarde aqui."
@@ -65,6 +76,24 @@ def transfer():
 
     print(f"[TRANSFER] Sessão {session_id} marcada para atendimento humano")
     return jsonify({"status": "ok", "message": "Pedido de atendimento humano recebido."})
+
+# ... (continua normalmente com a função send e o restante do código)
+
+
+@app.route("/encerrar/<session_id>", methods=["POST"])
+def encerrar(session_id):
+    usuarios_humano.discard(session_id)
+    if session_id in sessions:
+        sessions[session_id].append({
+            "sender": "bot",
+            "text": "A conversa com o profissional foi encerrada. Volte quando quiser conversar novamente."
+        })
+    return jsonify({"ok": True})
+
+
+@app.route("/status_sessao/<session_id>")
+def status_sessao(session_id):
+    return jsonify({"humano": session_id in usuarios_humano})
 
 @app.route("/send", methods=["POST"])
 def send():
