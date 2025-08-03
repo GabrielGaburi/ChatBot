@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import openai
 import os
 from dotenv import load_dotenv
+import uuid # Importar a biblioteca uuid
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -11,7 +12,7 @@ app = Flask(__name__)
 
 # Armazena sessões na memória
 usuarios_humano = set()  # sessões que pediram profissional
-sessions = {}  # {session_id: [ {sender: "user"/"bot"/"human", "text": "..."} ]}
+sessions = {}  # {session_id: [ {id: "uuid", sender: "user"/"bot"/"human", "text": "..."} ]}
 
 # ---------------- Rotas de páginas ---------------- #
 @app.route("/")
@@ -37,8 +38,8 @@ def enviar_profissional(session_id):
     texto = data.get("message", "").strip()
     if not texto:
         return jsonify({"ok": False, "error": "Mensagem vazia"})
-    # adiciona mensagem ao histórico
-    sessions.setdefault(session_id, []).append({"sender": "human", "text": texto})
+    # adiciona mensagem ao histórico com um ID único
+    sessions.setdefault(session_id, []).append({"id": str(uuid.uuid4()), "sender": "human", "text": texto})
     print(f"[PROFISSIONAL] para {session_id}: {texto}")
     return jsonify({"ok": True})
 
@@ -51,9 +52,6 @@ def perfil_meu():
         "biografia": "Experiência no atendimento a vícios e suporte emocional."
     }
     return jsonify(perfil)
-
-# ---------------- APIs do usuário ---------------- #
-# ... (todo o código anterior igual)
 
 # ---------------- APIs do usuário ---------------- #
 @app.route("/status_sessao/<session_id>")
@@ -70,6 +68,7 @@ def transfer():
     usuarios_humano.add(session_id)
     sessions.setdefault(session_id, [])
     sessions[session_id].append({
+        "id": str(uuid.uuid4()), # Adiciona ID único
         "sender": "bot",
         "text": "Você será atendido por um profissional em instantes. Aguarde aqui."
     })
@@ -85,6 +84,7 @@ def encerrar(session_id):
     usuarios_humano.discard(session_id)
     if session_id in sessions:
         sessions[session_id].append({
+            "id": str(uuid.uuid4()), # Adiciona ID único
             "sender": "bot",
             "text": "A conversa com o profissional foi encerrada. Volte quando quiser conversar novamente."
         })
@@ -111,8 +111,8 @@ def send():
     # 👉 Zerar histórico se necessário: basta limpar ao criar
     # sessions[session_id] = []  # descomente se quiser sempre começar do zero
 
-    # salva mensagem do usuário
-    sessions[session_id].append({"sender": "user", "text": user_message})
+    # salva mensagem do usuário com um ID único
+    sessions[session_id].append({"id": str(uuid.uuid4()), "sender": "user", "text": user_message})
     print(f"[USUÁRIO {session_id}] {user_message}")
 
     # 👉 Se a sessão está aguardando humano, IA não responde
@@ -128,12 +128,11 @@ def send():
                 {
                     "role": "system",
                     "content": (
-                        "Você é um assistente empático e próximo, alguém que conversa de coração aberto com pessoas afetadas pelo vício em apostas. "
-                        "Fale como um amigo que quer ajudar, validando sentimentos, mostrando compreensão e carinho. "
-                        "Suas respostas devem ser curtas, diretas e cheias de humanidade, como alguém que está ali para ouvir e apoiar. "
-                        "Jamais diga apenas que não pode ajudar ou que precisa procurar um profissional – você deve tentar ajudar com palavras de conforto e dicas práticas simples para lidar com o vício e o sofrimento. "
+                        "Você é um amigo empático e confiável, pronto para conversar com alguém que enfrenta dificuldades com o vício em apostas. Sua missão é acolher, ouvir sem julgar e oferecer apoio com palavras humanas, sinceras e gentis."
+                        "Converse como alguém próximo que realmente se importa. Suas respostas devem ser curtas, diretas e afetivas — mostre presença, compreensão e carinho."
+                        "Não recomende links, sites, serviços, ou diga para procurar outro profissional. Sua função é estar ali, presente, ajudando com palavras de encorajamento, escuta ativa e dicas simples que possam trazer conforto no momento."
+                        "Jamais incentive qualquer forma de aposta, jogo ou risco. Sempre acolha, valide sentimentos e mostre que a pessoa não está sozinha. Use uma linguagem leve, frases curtas, e um tom caloroso, como se estivesse escrevendo de coração para um amigo querido."
                         "Nunca incentive ou ensine qualquer tipo de aposta, jogo ou site relacionado. "
-                        "Não forneça links, telefones ou recomendações de serviços externos. "
                         "Mantenha o foco em acolher, ouvir, validar e oferecer conselhos breves, como alguém próximo que está disposto a conversar, encorajar e ajudar a pessoa a se sentir menos sozinha. "
                         "Use linguagem simples, frases curtas e um tom humano e acolhedor. "
                         "Se a pessoa compartilhar dores ou frustrações, responda com empatia e apoio, sem julgamentos."
@@ -144,7 +143,7 @@ def send():
             temperature=0.7
         )
         bot_reply = response.choices[0].message.content.strip()
-        sessions[session_id].append({"sender": "bot", "text": bot_reply})
+        sessions[session_id].append({"id": str(uuid.uuid4()), "sender": "bot", "text": bot_reply})
         print(f"[IA] para {session_id}: {bot_reply}")
         return jsonify({"reply": bot_reply})
 
@@ -154,3 +153,5 @@ def send():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+

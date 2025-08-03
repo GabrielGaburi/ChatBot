@@ -362,6 +362,7 @@
   </div>
 
   <script>
+    const mensagensRenderizadasIds = new Set(); // Armazena IDs únicas das mensagens já exibidas
     const chatbox = document.getElementById("chatbox");
     const toggleBtn = document.getElementById("chat-toggle");
     const chat = document.getElementById("chat");
@@ -429,17 +430,24 @@
       if (typingIndicator) typingIndicator.remove();
     }
 
-    function addMessage(text, type = "bot") {
+    function addMessage(text, type = "bot", id = null) {
+      if (id && mensagensRenderizadasIds.has(id)) {
+        return; // Já foi renderizada
+      }
+
+      if (id) mensagensRenderizadasIds.add(id);
+
       const msg = document.createElement("div");
       msg.className = `message ${type}-message`;
       const avatar = document.createElement("img");
       avatar.className = "avatar";
+
       if (type === "user") {
         avatar.src = "/static/dog.png";
       } else if (type === "human") {
-        avatar.src = "/static/images.png"; // Foto do profissional
+        avatar.src = "/static/images.png";
       } else {
-        avatar.src = "/static/caozinho.jpg"; // IA
+        avatar.src = "/static/caozinho.jpg";
       }
 
       const content = document.createElement("div");
@@ -447,11 +455,13 @@
       msg.appendChild(avatar);
       msg.appendChild(content);
       chat.appendChild(msg);
+
       if (type === "bot") {
         typeEffect(content, text);
       } else {
         content.textContent = text;
       }
+
       scrollToBottom();
     }
 
@@ -463,30 +473,60 @@
 
 
     async function transferToHuman() {
+      atendimentoHumano = true;
       document.getElementById("quickReplies").style.display = "none";
-      atendimentoHumano = true; // marca que agora é humano
+
+      // Desativa campo até transferência terminar
+      document.getElementById("userInput").disabled = true;
+
       try {
-        await fetch("/transfer", {
+        const response = await fetch("/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: getSessionId() })
         });
-        mensagensRenderizadas = 0;
-        iniciarPollingHumano();
+
+        const data = await response.json();
+
+        if (data.status === "ok") {
+          mensagensRenderizadas = 0;
+          iniciarPollingHumano();
+
+        } else {
+          addMessage("Erro ao solicitar atendimento humano. Tente novamente.", "bot");
+          atendimentoHumano = false;
+          document.getElementById("userInput").disabled = false;
+        }
       } catch (error) {
-        addMessage("Não foi possível solicitar um profissional agora.", "bot");
+        addMessage("Erro ao entrar em contato com o servidor.", "bot");
+        atendimentoHumano = false;
+        document.getElementById("userInput").disabled = false;
       }
+    }
+
+
+
+
+    function containsCriticalKeyword(text) {
+      const keywords = [
+        "suicídio", "desistir", "desespero", "não aguento", "quero ajuda", "me matar",
+        "socorro", "preciso falar com alguém", "urgente", "triste", "muito mal", "não vejo saída"
+      ];
+      return keywords.some(keyword => text.toLowerCase().includes(keyword));
     }
 
     async function sendMessage() {
       const input = document.getElementById("userInput");
+      if (input.disabled) return;
+
       const message = input.value.trim();
       if (!message) return;
 
       input.value = "";
 
+      addMessage(message, "user");
+
       if (atendimentoHumano) {
-        // 🔥 NÃO chama addMessage aqui para evitar duplicado
         await fetch("/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -495,18 +535,29 @@
         return;
       }
 
-      // ✅ Fora do modo humano, mostra imediatamente e processa IA
-      addMessage(message, "user");
+      if (containsCriticalKeyword(message)) {
+        addMessage("Sinto muito por você estar passando por isso. Posso chamar um profissional para conversar com você agora mesmo. 💙", "bot");
+        const quickArea = document.getElementById("quickReplies");
+        quickArea.innerHTML = `<button onclick="transferToHuman()">🧑‍⚕️ Falar com um profissional</button>`;
+        quickArea.style.display = "flex";
+        return;
+      }
+
       showTypingIndicator();
+
       try {
         const response = await fetch("/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: message, session_id: getSessionId() })
         });
+
         const data = await response.json();
-        hideTypingIndicator();
-        addMessage(data.reply, "bot");
+        if (!atendimentoHumano) {
+          hideTypingIndicator();
+          addMessage(data.reply, "bot", data.id || null);
+
+        }
       } catch (error) {
         hideTypingIndicator();
         addMessage("Erro ao se comunicar com o servidor.", "bot");
@@ -515,12 +566,17 @@
 
 
 
+
+
+
+
     let mensagensRenderizadas = 0;
 
 
 
     function iniciarPollingHumano() {
-      mensagensRenderizadas = 0; // zera o contador toda vez que começar a esperar profissional
+      mensagensRenderizadas = 0; // zera contador
+
       setInterval(async () => {
         if (!atendimentoHumano) return;
         try {
@@ -528,12 +584,14 @@
           const resp = await fetch(`/mensagens/${sessionId}`);
           const mensagens = await resp.json();
 
-          // Adiciona apenas mensagens novas
+          // 🔒 Adiciona apenas mensagens novas
           if (mensagens.length > mensagensRenderizadas) {
             for (let i = mensagensRenderizadas; i < mensagens.length; i++) {
-              // adiciona tudo (user, bot e human) sem apagar o chat
-              addMessage(mensagens[i].text, mensagens[i].sender);
+              const m = mensagens[i];
+              addMessage(m.text, m.sender, m.id); // ⚠️ Agora passa o ID!
             }
+            mensagensRenderizadas = mensagens.length;
+
             mensagensRenderizadas = mensagens.length;
           }
         } catch (err) {
@@ -541,6 +599,7 @@
         }
       }, 3000);
     }
+
 
 
     function toggleDarkMode(event) {
@@ -576,9 +635,11 @@
 
       if (data.humano) {
         atendimentoHumano = true;
+        mensagensRenderizadas = 0;
         iniciarPollingHumano();
-        addMessage("Você será atendido por um profissional em instantes.", "bot");
-      } else {
+        // ❌ Não adiciona mensagem manualmente aqui!
+      }
+      else {
         chat.innerHTML = "";
         mensagensRenderizadas = 0;
         addMessage("Precisa de ajuda ou quer conversar?", "bot");
@@ -586,6 +647,13 @@
     });
 
     document.addEventListener("DOMContentLoaded", () => {
+      const inputField = document.getElementById("userInput");
+      inputField.addEventListener("input", () => {
+        if (inputField.value.trim().length > 0) {
+          document.getElementById("quickReplies").style.display = "none";
+        }
+      });
+
       document.getElementById("userInput").addEventListener("keydown", function (e) {
         if (e.key === "Enter") {
           e.preventDefault(); // impede quebra de linha
