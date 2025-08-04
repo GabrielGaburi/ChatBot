@@ -10,8 +10,13 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 app = Flask(__name__)
 
 # Armazena sessões na memória
-usuarios_humano = set()  # sessões que pediram profissional
-sessions = {}  # {session_id: [ {sender: "user"/"bot"/"human", "text": "..."} ]}
+usuarios_humano: set[str] = set()  # sessões que pediram profissional
+sessions: dict[str, list[dict[str, str]]] = {}
+
+
+def add_message(session_id: str, sender: str, text: str) -> None:
+    """Adiciona uma mensagem ao histórico da sessão."""
+    sessions.setdefault(session_id, []).append({"sender": sender, "text": text})
 
 # ---------------- Rotas de páginas ---------------- #
 @app.route("/")
@@ -32,13 +37,13 @@ def mensagens(session_id):
     return jsonify(sessions.get(session_id, []))
 
 @app.route("/enviar_profissional/<session_id>", methods=["POST"])
-def enviar_profissional(session_id):
+def enviar_profissional(session_id: str):
     data = request.get_json()
     texto = data.get("message", "").strip()
     if not texto:
         return jsonify({"ok": False, "error": "Mensagem vazia"})
-    # adiciona mensagem ao histórico
-    sessions.setdefault(session_id, []).append({"sender": "human", "text": texto})
+
+    add_message(session_id, "human", texto)
     print(f"[PROFISSIONAL] para {session_id}: {texto}")
     return jsonify({"ok": True})
 
@@ -52,14 +57,6 @@ def perfil_meu():
     }
     return jsonify(perfil)
 
-# ---------------- APIs do usuário ---------------- #
-# ... (todo o código anterior igual)
-
-# ---------------- APIs do usuário ---------------- #
-@app.route("/status_sessao/<session_id>")
-def verificar_status_sessao(session_id):  # Nome diferente aqui
-    return jsonify({"humano": session_id in usuarios_humano})
-
 @app.route("/transfer", methods=["POST"])
 def transfer():
     data = request.get_json()
@@ -68,26 +65,24 @@ def transfer():
         return jsonify({"status": "error", "message": "session_id não informado"}), 400
 
     usuarios_humano.add(session_id)
-    sessions.setdefault(session_id, [])
-    sessions[session_id].append({
-        "sender": "bot",
-        "text": "Você será atendido por um profissional em instantes. Aguarde aqui."
-    })
+    add_message(
+        session_id,
+        "bot",
+        "Você será atendido por um profissional em instantes. Aguarde aqui.",
+    )
 
     print(f"[TRANSFER] Sessão {session_id} marcada para atendimento humano")
     return jsonify({"status": "ok", "message": "Pedido de atendimento humano recebido."})
 
-# ... (continua normalmente com a função send e o restante do código)
-
 
 @app.route("/encerrar/<session_id>", methods=["POST"])
-def encerrar(session_id):
+def encerrar(session_id: str):
     usuarios_humano.discard(session_id)
-    if session_id in sessions:
-        sessions[session_id].append({
-            "sender": "bot",
-            "text": "A conversa com o profissional foi encerrada. Volte quando quiser conversar novamente."
-        })
+    add_message(
+        session_id,
+        "bot",
+        "A conversa com o profissional foi encerrada. Volte quando quiser conversar novamente.",
+    )
     return jsonify({"ok": True})
 
 
@@ -103,16 +98,11 @@ def send():
 
     if not session_id:
         return jsonify({"reply": "Sessão não identificada."}), 400
+    if not user_message:
+        return jsonify({"reply": "Mensagem vazia."}), 400
 
-    # 👉 Se não existir histórico, inicializa um novo
-    if session_id not in sessions:
-        sessions[session_id] = []
-
-    # 👉 Zerar histórico se necessário: basta limpar ao criar
-    # sessions[session_id] = []  # descomente se quiser sempre começar do zero
-
-    # salva mensagem do usuário
-    sessions[session_id].append({"sender": "user", "text": user_message})
+    sessions.setdefault(session_id, [])
+    add_message(session_id, "user", user_message)
     print(f"[USUÁRIO {session_id}] {user_message}")
 
     # 👉 Se a sessão está aguardando humano, IA não responde
@@ -122,6 +112,8 @@ def send():
 
     # 👉 Caso contrário, responde com IA
     try:
+        if not openai.api_key:
+            raise RuntimeError("OPENAI_API_KEY não configurada")
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
@@ -144,7 +136,7 @@ def send():
             temperature=0.7
         )
         bot_reply = response.choices[0].message.content.strip()
-        sessions[session_id].append({"sender": "bot", "text": bot_reply})
+        add_message(session_id, "bot", bot_reply)
         print(f"[IA] para {session_id}: {bot_reply}")
         return jsonify({"reply": bot_reply})
 
