@@ -6,323 +6,544 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Painel do Profissional</title>
     <style>
+        :root {
+            --bg: #f3f4f6;
+            --surface: #fff;
+            --primary: #4f46e5;
+            --primary-600: #4338ca;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --ok: #16a34a;
+            --warn: #dc2626;
+            --user: #d1fae5;
+            --bot: #e0e7ff;
+            --human: #fde68a;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: #f3f4f6;
             margin: 0;
-            padding: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+            background: var(--bg);
+            color: #111827
         }
 
         header {
-            background: #4f46e5;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: space-between;
+            background: var(--primary);
             color: #fff;
-            padding: 16px;
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
+            padding: 14px 18px;
+            font-weight: 600
+        }
+
+        header .right {
+            font-weight: 400;
+            font-size: 13px;
+            opacity: .9
         }
 
         main {
             display: flex;
-            height: calc(100vh - 60px);
+            min-height: calc(100vh - 56px)
         }
 
+        /* sidebar */
         .sidebar {
-            width: 250px;
-            background: #fff;
-            border-right: 1px solid #ddd;
-            padding: 16px;
-            overflow-y: auto;
+            width: 300px;
+            max-width: 100%;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column
+        }
+
+        .sidebar-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 12px 8px
         }
 
         .sidebar h3 {
-            margin-top: 0;
+            margin: 0;
+            font-size: 16px
         }
 
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        .sidebar li {
-            padding: 8px;
-            margin-bottom: 8px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+        .refresh {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 8px;
             cursor: pointer;
-            background: #f9f9f9;
-            transition: background 0.2s;
+            font-size: 13px
         }
 
-        .sidebar li:hover {
-            background: #e0e7ff;
+        .refresh:hover {
+            background: #fafafa
         }
 
-        .chat-area {
+        .sessions {
+            flex: 1;
+            overflow: auto;
+            padding: 8px
+        }
+
+        .item {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin: 8px 0;
+            cursor: pointer;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px
+        }
+
+        .item:hover {
+            background: #fafafa
+        }
+
+        .item.active {
+            outline: 2px solid var(--primary)
+        }
+
+        .badge {
+            background: var(--primary);
+            color: #fff;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 12px
+        }
+
+        .empty {
+            padding: 16px;
+            color: var(--muted);
+            text-align: center
+        }
+
+        /* chat area */
+        .chat {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-width: 0
         }
 
-        .chat-header {
-            padding: 12px;
+        .chat-head {
             background: #eef2ff;
-            border-bottom: 1px solid #ddd;
-            font-weight: bold;
-        }
-
-        .chat-messages {
-            flex: 1;
-            padding: 10px;
-            overflow-y: auto;
-            background: #fafafa;
-        }
-
-        .chat-messages p {
-            margin: 6px 0;
-            padding: 8px 12px;
-            border-radius: 8px;
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-
-        .user-msg {
-            background: #d1fae5;
-            align-self: flex-start;
-        }
-
-        .bot-msg {
-            background: #e0e7ff;
-            align-self: flex-start;
-        }
-
-        .prof-msg {
-            background: #fbbf24;
-            align-self: flex-end;
-        }
-
-        .chat-input {
-            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            padding: 10px 14px;
             display: flex;
-            border-top: 1px solid #ddd;
-            background: #fff;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px
         }
 
-        .chat-input input {
-            flex: 1;
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        .chat-title {
+            font-weight: 600
         }
 
-        .chat-input button {
-            margin-left: 8px;
-            background: #4f46e5;
+        .chat-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .danger {
+            background: var(--warn);
             color: #fff;
             border: none;
-            padding: 10px 16px;
-            border-radius: 4px;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer
+        }
+
+        .danger:hover {
+            filter: brightness(.95)
+        }
+
+        .messages {
+            flex: 1;
+            overflow: auto;
+            background: #fafafa;
+            padding: 12px;
+            scroll-behavior: smooth
+        }
+
+        .row {
+            display: flex;
+            margin: 6px 0
+        }
+
+        .msg {
+            max-width: 70%;
+            padding: 8px 12px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word
+        }
+
+        .user .msg {
+            background: var(--user)
+        }
+
+        .bot .msg {
+            background: var(--bot)
+        }
+
+        .human .msg {
+            background: var(--human);
+            margin-left: auto
+        }
+
+        .meta {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px
+        }
+
+        .composer {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            border-top: 1px solid var(--border);
+            background: #fff
+        }
+
+        .composer textarea {
+            flex: 1;
+            min-height: 42px;
+            max-height: 160px;
+            resize: vertical;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px
+        }
+
+        .send {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 14px;
             cursor: pointer;
+            min-width: 88px;
+            font-weight: 600
         }
 
-        .chat-input button:hover {
-            background: #4338ca;
+        .send:hover {
+            background: var(--primary-600)
         }
 
-        .empty-state {
-            padding: 20px;
-            text-align: center;
-            color: #555;
+        .muted {
+            color: var(--muted);
+            font-size: 12px
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--ok);
+            display: inline-block;
+            margin-right: 6px
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #111827;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            opacity: 0;
+            transition: opacity .2s ease;
+            pointer-events: none
+        }
+
+        .toast.show {
+            opacity: 1
+        }
+
+        @media (max-width: 900px) {
+            .sidebar {
+                width: 230px
+            }
+        }
+
+        @media (max-width: 720px) {
+            main {
+                flex-direction: column
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border)
+            }
         }
     </style>
 </head>
 
 <body>
-    <header>Painel do Profissional</header>
+    <header>
+        <div>🩺 Painel do Profissional</div>
+        <div class="right">
+            <span class="status-dot" id="onlineDot"></span>
+            <span id="lastSync">sincronizando…</span>
+        </div>
+    </header>
+
     <main>
-        <div class="sidebar">
-            <h3>Sessões aguardando</h3>
-            <ul id="sessoes"></ul>
-            <button onclick="carregarSessoes()" style="margin-top:10px;">🔄 Atualizar lista</button>
-        </div>
-        <div class="chat-area">
-            <div class="chat-header" id="chatHeader">Nenhuma sessão selecionada</div>
-            <div class="chat-messages" id="mensagens">
-                <div class="empty-state">Selecione uma sessão à esquerda para começar.</div>
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-head">
+                <h3>Sessões aguardando</h3>
+                <button class="refresh" id="btnRefresh">🔄 Atualizar</button>
             </div>
-            <div class="chat-input">
-                <input type="text" id="msgProf" placeholder="Digite sua resposta..." disabled />
-                <button onclick="enviarProf()" id="btnEnviar" disabled>Enviar</button>
+            <div id="sessions" class="sessions">
+                <div class="empty">Nenhuma sessão aguardando.</div>
+            </div>
+        </aside>
+
+        <!-- Chat -->
+        <section class="chat">
+            <div class="chat-head">
+                <div class="chat-title" id="chatTitle">Nenhuma sessão selecionada</div>
+                <div class="chat-tools">
+                    <button class="danger" id="btnEnd" disabled>🚫 Encerrar</button>
+                </div>
             </div>
 
-            <div style="padding: 10px; text-align: center;">
-                <button onclick="encerrarAtendimento()"
-                    style="background: #dc2626; color: white; padding: 6px 12px; border: none; border-radius: 4px; margin-top: 6px;">
-                    🚫 Encerrar Atendimento
-                </button>
+            <div id="messages" class="messages">
+                <div class="empty">Selecione uma sessão à esquerda para começar.</div>
             </div>
 
-        </div>
+            <div class="composer">
+                <textarea id="inputMsg" placeholder="Digite sua resposta... (Enter envia • Shift+Enter quebra linha)"
+                    disabled></textarea>
+                <button class="send" id="btnSend" disabled>Enviar</button>
+            </div>
+
+            <div style="padding:6px 12px"><span class="muted">Dica: use Enter para enviar • Shift+Enter para nova
+                    linha</span></div>
+        </section>
     </main>
 
+    <div id="toast" class="toast"></div>
+
     <script>
+        // ------------ State ------------
         let sessaoSelecionada = null;
-        let intervaloMensagens = null;
+        let pollSessionsTimer = null;
+        let pollMessagesTimer = null;
+        let renderedIds = new Set(); // dedupe por ID para a sessão atual
+        let ultCount = 0;            // ponteiro incremental
+        const SESSIONS_POLL_MS = 5000;
+        const MESSAGES_POLL_MS = 2000;
 
-        async function verPerfil() {
-            try {
-                const response = await fetch("/perfil/meu"); // Endpoint a ser criado no backend
-                const dados = await response.json();
-                alert(`Nome: ${dados.nome}\nEspecialidade: ${dados.especialidade}\nBio: ${dados.biografia}`);
-            } catch (error) {
-                alert("Erro ao carregar o perfil.");
-            }
+        // ------------ DOM refs ------------
+        const elSessions = document.getElementById('sessions');
+        const elMessages = document.getElementById('messages');
+        const elTitle = document.getElementById('chatTitle');
+        const elInput = document.getElementById('inputMsg');
+        const elSend = document.getElementById('btnSend');
+        const elEnd = document.getElementById('btnEnd');
+        const elRefresh = document.getElementById('btnRefresh');
+        const elToast = document.getElementById('toast');
+        const elLastSync = document.getElementById('lastSync');
+        const elDot = document.getElementById('onlineDot');
+
+        // ------------ Utils ------------
+        const nowHHMM = () => {
+            const d = new Date();
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        const setOnline = (ok) => elDot.style.background = ok ? 'var(--ok)' : '#9ca3af';
+        const toast = (msg) => { elToast.textContent = msg; elToast.classList.add('show'); setTimeout(() => elToast.classList.remove('show'), 1800); }
+        const scrollBottom = () => elMessages.scrollTop = elMessages.scrollHeight;
+
+        function messageRow({ sender, text, ts }) {
+            const row = document.createElement('div');
+            row.className = 'row ' + (sender === 'human' ? 'human' : sender === 'user' ? 'user' : 'bot');
+            const bubble = document.createElement('div');
+            bubble.className = 'msg';
+            bubble.textContent = text;
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.textContent = ts ? ts : nowHHMM();
+            bubble.appendChild(document.createElement('br'));
+            bubble.appendChild(meta);
+            row.appendChild(bubble);
+            return row;
         }
 
-        // Fora de atualizarMensagens:
-        let ultimaQtde = 0;
-
-        async function atualizarMensagens() {
-            if (!sessaoSelecionada) return;
-            try {
-                const msgs = await fetch(`/mensagens/${sessaoSelecionada}`).then(r => r.json());
-                const container = document.getElementById("mensagens");
-                // Adiciona apenas mensagens novas
-                for (let i = ultimaQtde; i < msgs.length; i++) {
-                    const m = msgs[i];
-                    const p = document.createElement("p");
-                    if (m.sender === "user") {
-                        p.textContent = `Usuário: ${m.text}`;
-                        p.className = "user-msg";
-                    } else if (m.sender === "bot") {
-                        p.textContent = `Bot: ${m.text}`;
-                        p.className = "bot-msg";
-                    } else {
-                        p.textContent = `Você: ${m.text}`;
-                        p.className = "prof-msg";
-                    }
-                    container.appendChild(p);
-                }
-                ultimaQtde = msgs.length;
-                container.scrollTop = container.scrollHeight;
-            } catch (err) {
-                console.error(err);
-            }
+        function clearMessagesUI() {
+            renderedIds.clear();
+            ultCount = 0;
+            elMessages.innerHTML = '';
         }
 
-        // Ao selecionar uma sessão:
-        function selecionarSessao(id) {
-            sessaoSelecionada = id;
-            document.getElementById("chatHeader").textContent = `Atendimento: ${id}`;
-            document.getElementById("msgProf").disabled = false;
-            document.getElementById("btnEnviar").disabled = false;
-            const container = document.getElementById("mensagens");
-            container.innerHTML = "";
-            ultimaQtde = 0;
-            atualizarMensagens();
-            clearInterval(intervaloMensagens);
-            intervaloMensagens = setInterval(atualizarMensagens, 2000);
-        }
-
-        // Função para encerrar
-        async function encerrarAtendimento() {
-            if (!sessaoSelecionada) return;
-            // remove do set no backend: criar rota se desejar
-            await fetch(`/encerrar/${sessaoSelecionada}`, { method: "POST" });
-            sessaoSelecionada = null;
-            clearInterval(intervaloMensagens);
-            document.getElementById("chatHeader").textContent = "Nenhuma sessão selecionada";
-            document.getElementById("mensagens").innerHTML = `<div class="empty-state">Selecione uma sessão à esquerda para começar.</div>`;
-            document.getElementById("msgProf").disabled = true;
-            document.getElementById("btnEnviar").disabled = true;
-            carregarSessoes();
-        }
-
-
+        // ------------ Sessions ------------
         async function carregarSessoes() {
             try {
-                const lista = await fetch("/lista_sessoes").then(r => r.json());
-                const ul = document.getElementById("sessoes");
-                ul.innerHTML = "";
-                if (lista.length === 0) {
-                    ul.innerHTML = "<li>Nenhuma sessão aguardando.</li>";
+                const r = await fetch('/lista_sessoes');
+                setOnline(r.ok);
+                const lista = r.ok ? await r.json() : [];
+                elSessions.innerHTML = '';
+                if (!lista || lista.length === 0) {
+                    elSessions.innerHTML = '<div class="empty">Nenhuma sessão aguardando.</div>';
                 } else {
                     lista.forEach(id => {
-                        const li = document.createElement("li");
-                        li.textContent = id;
-                        li.onclick = () => selecionarSessao(id);
-                        ul.appendChild(li);
+                        const item = document.createElement('div');
+                        item.className = 'item' + (id === sessaoSelecionada ? ' active' : '');
+                        item.innerHTML = `<div><strong>${id}</strong></div><span class="badge">aguardando</span>`;
+                        item.onclick = () => selecionarSessao(id);
+                        elSessions.appendChild(item);
                     });
                 }
-            } catch (err) {
-                console.error("Erro ao carregar sessões:", err);
+                elLastSync.textContent = `atualizado às ${nowHHMM()}`;
+            } catch (e) {
+                setOnline(false);
+                console.error(e);
+                elLastSync.textContent = `falha ao sincronizar`;
             }
         }
 
-        function selecionarSessao(id) {
-            sessaoSelecionada = id;
-            document.getElementById("chatHeader").textContent = `Atendendo sessão: ${id}`;
-            document.getElementById("msgProf").disabled = false;
-            document.getElementById("btnEnviar").disabled = false;
-            if (intervaloMensagens) clearInterval(intervaloMensagens);
-            atualizarMensagens();
-            intervaloMensagens = setInterval(atualizarMensagens, 3000);
+        function startSessionsPolling() {
+            if (pollSessionsTimer) clearInterval(pollSessionsTimer);
+            pollSessionsTimer = setInterval(carregarSessoes, SESSIONS_POLL_MS);
         }
 
-        async function atualizarMensagens() {
+        // ------------ Messages ------------
+        async function selecionarSessao(id) {
+            sessaoSelecionada = id;
+            elTitle.textContent = `Atendendo sessão: ${id}`;
+            elInput.disabled = false;
+            elSend.disabled = false;
+            elEnd.disabled = false;
+
+            // destaque visual na lista
+            [...elSessions.querySelectorAll('.item')].forEach(n => {
+                n.classList.toggle('active', n.textContent.includes(id));
+            });
+
+            // reseta UI e inicia polling incremental
+            clearMessagesUI();
+            await renderIncremental(); // pinta o histórico 1x sem flicker
+            startMessagesPolling();
+            toast(`Sessão ${id} selecionada`);
+        }
+
+        function startMessagesPolling() {
+            if (pollMessagesTimer) clearInterval(pollMessagesTimer);
+            pollMessagesTimer = setInterval(renderIncremental, MESSAGES_POLL_MS);
+        }
+
+        async function renderIncremental() {
             if (!sessaoSelecionada) return;
             try {
-                const msgs = await fetch(`/mensagens/${sessaoSelecionada}`).then(r => r.json());
-                const container = document.getElementById("mensagens");
-                container.innerHTML = "";
-                msgs.forEach(m => {
-                    const p = document.createElement("p");
-                    if (m.sender === "user") {
-                        p.textContent = `Usuário: ${m.text}`;
-                        p.className = "user-msg";
-                    } else if (m.sender === "bot") {
-                        p.textContent = `Bot: ${m.text}`;
-                        p.className = "bot-msg";
-                    } else if (m.sender === "human") {
-                        p.textContent = `Você: ${m.text}`;
-                        p.className = "prof-msg";
+                const r = await fetch(`/mensagens/${sessaoSelecionada}`);
+                setOnline(r.ok);
+                const msgs = r.ok ? await r.json() : [];
+                // adiciona somente novas mensagens
+                for (let i = ultCount; i < msgs.length; i++) {
+                    const m = msgs[i];
+                    if (m && m.id && !renderedIds.has(m.id)) {
+                        renderedIds.add(m.id);
+                        elMessages.appendChild(messageRow({ sender: m.sender, text: m.text }));
                     }
-                    container.appendChild(p);
-                });
-                container.scrollTop = container.scrollHeight;
-            } catch (err) {
-                console.error("Erro ao atualizar mensagens:", err);
+                }
+                if (msgs.length > ultCount) {
+                    ultCount = msgs.length;
+                    scrollBottom();
+                }
+            } catch (e) {
+                setOnline(false);
+                console.error('Erro ao buscar mensagens', e);
             }
         }
 
-        async function enviarProf() {
-            const texto = document.getElementById("msgProf").value.trim();
+        // ------------ Actions ------------
+        async function enviar() {
+            const texto = elInput.value.trim();
             if (!texto || !sessaoSelecionada) return;
+            elSend.disabled = true;
+
             try {
-                await fetch(`/enviar_profissional/${sessaoSelecionada}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                const r = await fetch(`/enviar_profissional/${sessaoSelecionada}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: texto })
                 });
-                document.getElementById("msgProf").value = "";
-                atualizarMensagens();
-            } catch (err) {
-                console.error("Erro ao enviar mensagem:", err);
+                if (!r.ok) throw new Error('Falha ao enviar');
+                elInput.value = '';
+                // não renderiza otimista para evitar duplicação; espera polling captar
+                await renderIncremental();
+            } catch (e) {
+                console.error(e);
+                toast('Erro ao enviar. Tente de novo.');
+            } finally {
+                elSend.disabled = false;
+                elInput.focus();
             }
         }
 
-        // Carregar lista inicial ao abrir
-        window.onload = carregarSessoes;
+        async function encerrar() {
+            if (!sessaoSelecionada) return;
+            const ok = confirm('Encerrar este atendimento?');
+            if (!ok) return;
 
-        // Enviar com Enter
-        document.getElementById("msgProf").addEventListener("keydown", function (e) {
-            if (e.key === "Enter") {
+            try {
+                const r = await fetch(`/encerrar/${sessaoSelecionada}`, { method: 'POST' });
+                if (!r.ok) throw new Error('Falha ao encerrar');
+                // reseta estado de chat
+                clearMessagesUI();
+                elTitle.textContent = 'Nenhuma sessão selecionada';
+                elInput.disabled = true; elSend.disabled = true; elEnd.disabled = true;
+                sessaoSelecionada = null;
+                if (pollMessagesTimer) clearInterval(pollMessagesTimer);
+                await carregarSessoes();
+                toast('Atendimento encerrado.');
+            } catch (e) {
+                console.error(e);
+                toast('Não foi possível encerrar.');
+            }
+        }
+
+        // ------------ Wire-up ------------
+        elRefresh.addEventListener('click', carregarSessoes);
+        elSend.addEventListener('click', enviar);
+        elEnd.addEventListener('click', encerrar);
+
+        // Enter envia, Shift+Enter quebra linha
+        elInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                enviarProf();
+                enviar();
             }
         });
 
+        // boot
+        (async function init() {
+            await carregarSessoes();
+            startSessionsPolling();
+        })();
     </script>
 </body>
 

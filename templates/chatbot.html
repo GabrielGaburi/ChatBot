@@ -501,13 +501,162 @@
 
 
 
-    function containsCriticalKeyword(text) {
-      const keywords = [
-        "suicídio", "desistir", "desespero", "não aguento", "quero ajuda", "me matar",
-        "socorro", "preciso falar com alguém", "urgente", "triste", "muito mal", "não vejo saída"
-      ];
-      return keywords.some(keyword => text.toLowerCase().includes(keyword));
+    // --- Helpers de normalização e fuzzy ----------------------------------------
+    function normalizeBase(s) {
+      return (s || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/\p{Diacritic}/gu, "")         // remove acentos
+        .replace(/[’'`´]/g, "'")
+        .replace(/[^\p{L}\p{N}\s'!?💔😭😢😞]/gu, " ")            // preserva letras, números, espaço e alguns emojis úteis
+        .replace(/\s+/g, " ")
+        .trim();
     }
+
+    function leetToPlain(s) {
+      // traduz leetspeak comum
+      return s
+        .replace(/0/g, "o")
+        .replace(/1/g, "i")
+        .replace(/3/g, "e")
+        .replace(/4/g, "a")
+        .replace(/5/g, "s")
+        .replace(/7/g, "t");
+    }
+
+    function collapseRepeats(s) {
+      // reduz repetições exageradas: "naooooo" -> "naoo" (mantém no máx 2)
+      return s.replace(/(.)\1{2,}/g, "$1$1");
+    }
+
+    function normalizeAll(s) {
+      return collapseRepeats(leetToPlain(normalizeBase(s)));
+    }
+
+    // Distância de Levenshtein simples (para typos)
+    function editDistance(a, b) {
+      const dp = Array(b.length + 1).fill(0).map((_, i) => i);
+      for (let i = 1; i <= a.length; i++) {
+        let prev = i - 1;
+        dp[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          const tmp = dp[j];
+          dp[j] = (a[i - 1] === b[j - 1])
+            ? prev
+            : 1 + Math.min(prev, dp[j], dp[j - 1]);
+          prev = tmp;
+        }
+      }
+      return dp[b.length];
+    }
+
+    // fuzzyIncludes: confere se "needle" aparece dentro de "hay" com tolerância a erros
+    function fuzzyIncludes(hay, needle, maxEdits = 1) {
+      hay = " " + hay + " ";
+      if (hay.includes(needle)) return true;
+
+      // janela deslizante com tamanho aproximado
+      const n = needle.length;
+      if (n === 0) return false;
+
+      // limita custo para frases maiores
+      const allowed = Math.min(maxEdits + Math.floor(n / 12), 2);
+
+      for (let i = 0; i <= hay.length - n; i++) {
+        const slice = hay.slice(i, i + n);
+        if (editDistance(slice, needle) <= allowed) return true;
+      }
+      return false;
+    }
+
+    // Verifica múltiplas variantes de uma mesma frase/termo
+    function fuzzyAny(hay, variants, maxEdits = 1) {
+      return variants.some(v => {
+        const n = normalizeAll(v);
+        return n && fuzzyIncludes(hay, n, maxEdits);
+      });
+    }
+
+    // --- Dicionário de sinais críticos ------------------------------------------
+    const CRITICAL_PATTERNS = {
+      // risco direto / ideação
+      suicidio: [
+        "suicidio", "me matar", "tirar minha vida", "acabar com tudo",
+        "quero morrer", "sem vontade de viver", "nao quero mais viver",
+        "pensando em morrer", "ideacao suicida", "quero sumir"
+      ],
+      // sofrimento intenso / desespero
+      distress: [
+        "nao aguento", "nao aguento mais", "desespero", "sem saida", "sem saída",
+        "to mal", "tô mal", "muito mal", "pior dia", "crise de panico", "crise panico",
+        "ataque de panico", "ansiedade forte", "desesperado", "no fundo do poco", "no fundo do poço",
+        "sou um lixo", "nao presto", "nao vejo futuro", "sofrendo demais"
+      ],
+      // pedido de ajuda / urgência
+      help: [
+        "quero ajuda", "preciso de ajuda", "socorro", "me ajuda", "ajuda por favor",
+        "urgente", "falar com alguem", "conversar com alguem", "preciso falar com alguem",
+        "posso falar com alguem", "quero conversar com alguem", "apoio agora"
+      ],
+      // contexto forte de jogo/colapso
+      gambling_crisis: [
+        "nao consigo parar de apostar", "nao consigo parar", "compulsao por apostar", "compulsao por jogo",
+        "recaida", "recaída", "voltei a apostar", "perdi tudo", "perdi meu salario", "perdi meu salário",
+        "endividado", "muita divida", "muitas dividas", "divida com agiota", "cobranca pesada",
+        "quebrado", "rompi limite"
+      ],
+      // familiares / rede de apoio
+      family: [
+        "meu marido aposta", "minha esposa aposta", "meu filho viciado", "minha filha viciada",
+        "meu pai viciado", "minha mae viciada", "meu irmão viciado", "minha irmã viciada",
+        "meu namorado aposta", "minha namorada aposta", "alguem proximo viciado", "alguém próximo viciado",
+        "ajuda para familia", "sou familiar de viciado", "sou parente de viciado"
+      ],
+      // emojis e sinais curtos de forte sofrimento (vale como disparador adicional)
+      emojis: [
+        "😭", "💔", "😢", "😞"
+      ]
+    };
+
+    // Frases curtas “núcleo” para pegar variações ainda mais livres (com fuzzy mais aberto)
+    const CORE_SIGNALS = [
+      "me matar", "acabar com tudo", "quero morrer", "nao aguento mais",
+      "preciso de ajuda", "socorro", "sem saida", "muito mal",
+      "nao consigo parar", "perdi tudo", "endividado"
+    ];
+
+    // --- Detector principal ------------------------------------------------------
+    function detectCritical(text) {
+      const raw = text || "";
+      if (!raw.trim()) return { match: false };
+
+      const norm = normalizeAll(raw);
+
+      // 1) Emojis de sofrimento forte (detecção direta)
+      if (CRITICAL_PATTERNS.emojis.some(e => raw.includes(e))) {
+        return { match: true, category: "emojis", trigger: "emoji" };
+      }
+
+      // 2) Padrões por categoria (fuzzy leve)
+      for (const [category, variants] of Object.entries(CRITICAL_PATTERNS)) {
+        if (category === "emojis") continue;
+        if (fuzzyAny(norm, variants, 1)) {
+          return { match: true, category, trigger: variants.find(v => fuzzyIncludes(norm, normalizeAll(v), 1)) || "fuzzy" };
+        }
+      }
+
+      // 3) Núcleo com tolerância um pouco maior (para erros de digitação pesados)
+      if (fuzzyAny(norm, CORE_SIGNALS, 2)) {
+        return { match: true, category: "core", trigger: "core-fuzzy" };
+      }
+
+      return { match: false };
+    }
+
+    // --- Função compatível com seu código atual ---------------------------------
+    function containsCriticalKeyword(text) {
+      return detectCritical(text).match === true;
+    }
+
 
     async function sendMessage() {
       const input = document.getElementById("userInput");

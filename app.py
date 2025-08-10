@@ -4,13 +4,39 @@ import uuid
 from dotenv import load_dotenv
 import openai
 
-# Carrega variáveis de ambiente
+# ---------------- Config ---------------- #
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY não encontrada no ambiente. Defina no .env ou nas variáveis do sistema.")
+openai.api_key = OPENAI_API_KEY
 
 app = Flask(__name__)
 
-# Armazena sessões na memória
+# Prompt do sistema (centralizado)
+SYSTEM_PROMPT = (
+    "Você é um amigo próximo, empático e confiável. "
+    "Sua função é conversar e oferecer apoio emocional para pessoas afetadas pelo vício em apostas — "
+    "tanto quem enfrenta o vício diretamente quanto familiares ou amigos de alguém nessa situação.\n\n"
+    "TOM E ESTILO:\n"
+    "- Fale com calor humano, acolhimento e zero julgamentos.\n"
+    "- Use frases curtas e simples, transmitindo presença e proximidade.\n"
+    "- Mostre escuta ativa e empatia genuína.\n\n"
+    "REGRAS IMPORTANTES:\n"
+    "- Nunca recomende links, serviços, profissionais ou tratamentos específicos.\n"
+    "- Nunca incentive, ensine, normalizar ou minimizar riscos de apostas ou jogos de azar.\n"
+    "- Não use jargões técnicos nem faça diagnósticos.\n"
+    "- Não prometa curas ou garantias.\n\n"
+    "O QUE FAZER:\n"
+    "- Valide sentimentos (ex.: “Entendo como isso pode ser difícil…”).\n"
+    "- Demonstre presença (ex.: “Estou aqui para te ouvir…”).\n"
+    "- Reforce que a pessoa não está sozinha (ex.: “Você não está sozinho nisso.”).\n"
+    "- Faça perguntas suaves para manter a conversa (ex.: “Quer me contar um pouco mais?”).\n\n"
+    "OBJETIVO:\n"
+    "Fazer a pessoa sentir-se compreendida, acolhida e menos sozinha neste momento."
+)
+
+# ---------------- Estado em memória ---------------- #
 usuarios_humano = set()  # sessões que pediram profissional
 # sessions: { session_id: [ {id: "uuid", sender: "user"/"bot"/"human", text: "..."} ] }
 sessions = {}
@@ -27,12 +53,10 @@ def painel():
 # ---------------- APIs do painel ---------------- #
 @app.route("/lista_sessoes")
 def lista_sessoes():
-    # retorna lista de sessões que pediram humano
     return jsonify(list(usuarios_humano))
 
 @app.route("/mensagens/<session_id>")
 def mensagens(session_id):
-    # retorna histórico completo (front faz dedupe/render incremental)
     return jsonify(sessions.get(session_id, []))
 
 @app.route("/enviar_profissional/<session_id>", methods=["POST"])
@@ -61,7 +85,6 @@ def perfil_meu():
 # ---------------- APIs do usuário ---------------- #
 @app.route("/status_sessao/<session_id>")
 def status_sessao(session_id):
-    # (mantemos só UMA rota /status_sessao)
     return jsonify({"humano": session_id in usuarios_humano})
 
 @app.route("/transfer", methods=["POST"])
@@ -104,45 +127,46 @@ def send():
 
     sessions.setdefault(session_id, [])
 
-    # salva mensagem do usuário (sempre, para histórico)
+    # registra mensagem do usuário
     user_msg_id = str(uuid.uuid4())
     sessions[session_id].append({"id": user_msg_id, "sender": "user", "text": user_message})
     print(f"[USUÁRIO {session_id}] {user_message}")
 
-    # Se pediu humano, IA não responde
+    # se aguardando humano, IA não responde
     if session_id in usuarios_humano:
         print(f"[AGUARDANDO PROFISSIONAL] {session_id} - IA desligada")
-        # opcional: retornar id da msg do usuário para o front deduplicar render local
-        return jsonify({"reply": "Um profissional está atendendo você. Aguarde a resposta dele aqui.", "id": user_msg_id})
+        return jsonify({
+            "reply": "Um profissional está atendendo você. Aguarde a resposta dele aqui.",
+            "id": user_msg_id  # útil pro front deduplicar se quiser
+        })
 
-    # Resposta da IA
+    # resposta da IA com prompt otimizado
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Você é um amigo empático e confiável, pronto para conversar com alguém que enfrenta dificuldades com o vício em apostas. "
-                        "Converse de forma acolhedora, sem julgar, com frases curtas e gentis. "
-                        "Não recomende links/serviços, nem incentive apostas. Foque em validar sentimentos e apoiar."
-                    )
-                },
+                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
             ],
             temperature=0.7
         )
         bot_reply = response.choices[0].message.content.strip()
+
         bot_msg_id = str(uuid.uuid4())
-        sessions[session_id].append({"id": bot_msg_id, "sender": "bot", "text": bot_reply})
+        sessions[session_id].append({
+            "id": bot_msg_id,
+            "sender": "bot",
+            "text": bot_reply
+        })
+
         print(f"[IA -> {session_id}] {bot_reply}")
-        # Agora retorna também o ID para o front deduplicar
         return jsonify({"reply": bot_reply, "id": bot_msg_id})
 
     except Exception as e:
+        # não quebra o app; devolve erro legível pro front
         print(f"[ERRO IA] {e}")
         return jsonify({"reply": f"Erro: {str(e)}"})
 
 if __name__ == "__main__":
-    # Em dev: debug=True. Em produção: use servidor WSGI (gunicorn/uwsgi) e desative debug.
+    # Em produção, use um servidor WSGI (gunicorn/uwsgi) e desative debug.
     app.run(debug=True)
