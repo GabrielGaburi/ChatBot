@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, jsonify
-import openai
 import os
+import uuid
 from dotenv import load_dotenv
-import uuid # Importar a biblioteca uuid
+import openai
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -12,7 +12,8 @@ app = Flask(__name__)
 
 # Armazena sessões na memória
 usuarios_humano = set()  # sessões que pediram profissional
-sessions = {}  # {session_id: [ {id: "uuid", sender: "user"/"bot"/"human", "text": "..."} ]}
+# sessions: { session_id: [ {id: "uuid", sender: "user"/"bot"/"human", text: "..."} ] }
+sessions = {}
 
 # ---------------- Rotas de páginas ---------------- #
 @app.route("/")
@@ -26,26 +27,30 @@ def painel():
 # ---------------- APIs do painel ---------------- #
 @app.route("/lista_sessoes")
 def lista_sessoes():
+    # retorna lista de sessões que pediram humano
     return jsonify(list(usuarios_humano))
 
 @app.route("/mensagens/<session_id>")
 def mensagens(session_id):
+    # retorna histórico completo (front faz dedupe/render incremental)
     return jsonify(sessions.get(session_id, []))
 
 @app.route("/enviar_profissional/<session_id>", methods=["POST"])
 def enviar_profissional(session_id):
-    data = request.get_json()
-    texto = data.get("message", "").strip()
+    data = request.get_json(force=True) or {}
+    texto = (data.get("message") or "").strip()
     if not texto:
-        return jsonify({"ok": False, "error": "Mensagem vazia"})
-    # adiciona mensagem ao histórico com um ID único
-    sessions.setdefault(session_id, []).append({"id": str(uuid.uuid4()), "sender": "human", "text": texto})
-    print(f"[PROFISSIONAL] para {session_id}: {texto}")
-    return jsonify({"ok": True})
+        return jsonify({"ok": False, "error": "Mensagem vazia"}), 400
+
+    msg_id = str(uuid.uuid4())
+    sessions.setdefault(session_id, []).append({
+        "id": msg_id, "sender": "human", "text": texto
+    })
+    print(f"[PROFISSIONAL -> {session_id}] {texto}")
+    return jsonify({"ok": True, "id": msg_id})
 
 @app.route("/perfil/meu")
 def perfil_meu():
-    # Mock - substitua por dados reais depois
     perfil = {
         "nome": "Dr. Gabriel",
         "especialidade": "Psicólogo Clínico",
@@ -55,12 +60,13 @@ def perfil_meu():
 
 # ---------------- APIs do usuário ---------------- #
 @app.route("/status_sessao/<session_id>")
-def verificar_status_sessao(session_id):  # Nome diferente aqui
+def status_sessao(session_id):
+    # (mantemos só UMA rota /status_sessao)
     return jsonify({"humano": session_id in usuarios_humano})
 
 @app.route("/transfer", methods=["POST"])
 def transfer():
-    data = request.get_json()
+    data = request.get_json(force=True) or {}
     session_id = data.get("session_id")
     if not session_id:
         return jsonify({"status": "error", "message": "session_id não informado"}), 400
@@ -68,7 +74,7 @@ def transfer():
     usuarios_humano.add(session_id)
     sessions.setdefault(session_id, [])
     sessions[session_id].append({
-        "id": str(uuid.uuid4()), # Adiciona ID único
+        "id": str(uuid.uuid4()),
         "sender": "bot",
         "text": "Você será atendido por um profissional em instantes. Aguarde aqui."
     })
@@ -76,51 +82,40 @@ def transfer():
     print(f"[TRANSFER] Sessão {session_id} marcada para atendimento humano")
     return jsonify({"status": "ok", "message": "Pedido de atendimento humano recebido."})
 
-# ... (continua normalmente com a função send e o restante do código)
-
-
 @app.route("/encerrar/<session_id>", methods=["POST"])
 def encerrar(session_id):
     usuarios_humano.discard(session_id)
     if session_id in sessions:
         sessions[session_id].append({
-            "id": str(uuid.uuid4()), # Adiciona ID único
+            "id": str(uuid.uuid4()),
             "sender": "bot",
             "text": "A conversa com o profissional foi encerrada. Volte quando quiser conversar novamente."
         })
     return jsonify({"ok": True})
 
-
-@app.route("/status_sessao/<session_id>")
-def status_sessao(session_id):
-    return jsonify({"humano": session_id in usuarios_humano})
-
 @app.route("/send", methods=["POST"])
 def send():
-    data = request.get_json()
-    user_message = data.get("message", "").strip()
+    data = request.get_json(force=True) or {}
+    user_message = (data.get("message") or "").strip()
     session_id = data.get("session_id")
 
     if not session_id:
         return jsonify({"reply": "Sessão não identificada."}), 400
 
-    # 👉 Se não existir histórico, inicializa um novo
-    if session_id not in sessions:
-        sessions[session_id] = []
+    sessions.setdefault(session_id, [])
 
-    # 👉 Zerar histórico se necessário: basta limpar ao criar
-    # sessions[session_id] = []  # descomente se quiser sempre começar do zero
-
-    # salva mensagem do usuário com um ID único
-    sessions[session_id].append({"id": str(uuid.uuid4()), "sender": "user", "text": user_message})
+    # salva mensagem do usuário (sempre, para histórico)
+    user_msg_id = str(uuid.uuid4())
+    sessions[session_id].append({"id": user_msg_id, "sender": "user", "text": user_message})
     print(f"[USUÁRIO {session_id}] {user_message}")
 
-    # 👉 Se a sessão está aguardando humano, IA não responde
+    # Se pediu humano, IA não responde
     if session_id in usuarios_humano:
         print(f"[AGUARDANDO PROFISSIONAL] {session_id} - IA desligada")
-        return jsonify({"reply": "Um profissional está atendendo você. Aguarde a resposta dele aqui."})
+        # opcional: retornar id da msg do usuário para o front deduplicar render local
+        return jsonify({"reply": "Um profissional está atendendo você. Aguarde a resposta dele aqui.", "id": user_msg_id})
 
-    # 👉 Caso contrário, responde com IA
+    # Resposta da IA
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -128,14 +123,9 @@ def send():
                 {
                     "role": "system",
                     "content": (
-                        "Você é um amigo empático e confiável, pronto para conversar com alguém que enfrenta dificuldades com o vício em apostas. Sua missão é acolher, ouvir sem julgar e oferecer apoio com palavras humanas, sinceras e gentis."
-                        "Converse como alguém próximo que realmente se importa. Suas respostas devem ser curtas, diretas e afetivas — mostre presença, compreensão e carinho."
-                        "Não recomende links, sites, serviços, ou diga para procurar outro profissional. Sua função é estar ali, presente, ajudando com palavras de encorajamento, escuta ativa e dicas simples que possam trazer conforto no momento."
-                        "Jamais incentive qualquer forma de aposta, jogo ou risco. Sempre acolha, valide sentimentos e mostre que a pessoa não está sozinha. Use uma linguagem leve, frases curtas, e um tom caloroso, como se estivesse escrevendo de coração para um amigo querido."
-                        "Nunca incentive ou ensine qualquer tipo de aposta, jogo ou site relacionado. "
-                        "Mantenha o foco em acolher, ouvir, validar e oferecer conselhos breves, como alguém próximo que está disposto a conversar, encorajar e ajudar a pessoa a se sentir menos sozinha. "
-                        "Use linguagem simples, frases curtas e um tom humano e acolhedor. "
-                        "Se a pessoa compartilhar dores ou frustrações, responda com empatia e apoio, sem julgamentos."
+                        "Você é um amigo empático e confiável, pronto para conversar com alguém que enfrenta dificuldades com o vício em apostas. "
+                        "Converse de forma acolhedora, sem julgar, com frases curtas e gentis. "
+                        "Não recomende links/serviços, nem incentive apostas. Foque em validar sentimentos e apoiar."
                     )
                 },
                 {"role": "user", "content": user_message}
@@ -143,15 +133,16 @@ def send():
             temperature=0.7
         )
         bot_reply = response.choices[0].message.content.strip()
-        sessions[session_id].append({"id": str(uuid.uuid4()), "sender": "bot", "text": bot_reply})
-        print(f"[IA] para {session_id}: {bot_reply}")
-        return jsonify({"reply": bot_reply})
+        bot_msg_id = str(uuid.uuid4())
+        sessions[session_id].append({"id": bot_msg_id, "sender": "bot", "text": bot_reply})
+        print(f"[IA -> {session_id}] {bot_reply}")
+        # Agora retorna também o ID para o front deduplicar
+        return jsonify({"reply": bot_reply, "id": bot_msg_id})
 
     except Exception as e:
         print(f"[ERRO IA] {e}")
         return jsonify({"reply": f"Erro: {str(e)}"})
 
 if __name__ == "__main__":
+    # Em dev: debug=True. Em produção: use servidor WSGI (gunicorn/uwsgi) e desative debug.
     app.run(debug=True)
-
-

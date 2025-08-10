@@ -462,22 +462,43 @@
     }
 
 
+    let pollTimer = null;
+    let mensagensRenderizadas = 0; // contador do que já foi consumido do backend
+
     async function transferToHuman() {
       document.getElementById("quickReplies").style.display = "none";
-      atendimentoHumano = true; // ⚠️ Setar ANTES da chamada para impedir IA
+      atendimentoHumano = true;
+      hideTypingIndicator(); // se estava mostrando "digitando..."
 
       try {
+        // 1) Marca a sessão para humano no backend (ele também adiciona a msg "Você será atendido...")
         await fetch("/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: getSessionId() })
         });
-        mensagensRenderizadas = 0;
+
+        // 2) Prime do polling: lê o histórico atual e AJUSTA o ponteiro
+        const sessionId = getSessionId();
+        const resp = await fetch(`/mensagens/${sessionId}`);
+        const msgs = await resp.json();
+
+        // ❗ Não re-renderize o passado: posicione o ponteiro no fim
+        mensagensRenderizadas = msgs.length;
+
+        // (Opcional) exibir só a ÚLTIMA msg (a do "Você será atendido...") sem repetir o resto:
+        const last = msgs[msgs.length - 1];
+        if (last) addMessage(last.text, last.sender);
+
+        // 3) Inicia o polling (apenas mensagens novas a partir daqui)
         iniciarPollingHumano();
+
       } catch (error) {
         addMessage("Não foi possível solicitar um profissional agora.", "bot");
+        atendimentoHumano = false; // volta ao modo IA caso dê erro
       }
     }
+
 
 
     function containsCriticalKeyword(text) {
@@ -495,20 +516,22 @@
 
       input.value = "";
 
-      // ✅ Evita duplicação: só renderiza localmente se NÃO estiver com profissional
+      // ⚠️ SÓ renderiza local quando NÃO estiver no modo humano
       if (!atendimentoHumano) {
         addMessage(message, "user");
       }
 
+      // Modo humano: apenas envia para o backend (o polling renderiza depois)
       if (atendimentoHumano) {
         await fetch("/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: message, session_id: getSessionId() })
+          body: JSON.stringify({ message, session_id: getSessionId() })
         });
         return;
       }
 
+      // Palavras-chave -> oferta de humano (sem transfer automática aqui)
       if (containsCriticalKeyword(message)) {
         addMessage("Sinto muito por você estar passando por isso. Posso chamar um profissional para conversar com você agora mesmo. 💙", "bot");
         const quickArea = document.getElementById("quickReplies");
@@ -517,22 +540,19 @@
         return;
       }
 
+      // IA normal
       showTypingIndicator();
-
       try {
         const response = await fetch("/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: message, session_id: getSessionId() })
+          body: JSON.stringify({ message, session_id: getSessionId() })
         });
-
         const data = await response.json();
+        hideTypingIndicator();
 
         if (!atendimentoHumano) {
-          hideTypingIndicator();
           addMessage(data.reply, "bot");
-        } else {
-          hideTypingIndicator();
         }
       } catch (error) {
         hideTypingIndicator();
@@ -545,32 +565,33 @@
 
 
 
-    let mensagensRenderizadas = 0;
 
 
 
     function iniciarPollingHumano() {
-      mensagensRenderizadas = 0; // zera o contador toda vez que começar a esperar profissional
-      setInterval(async () => {
+      if (pollTimer) clearInterval(pollTimer);
+
+      pollTimer = setInterval(async () => {
         if (!atendimentoHumano) return;
         try {
           const sessionId = getSessionId();
           const resp = await fetch(`/mensagens/${sessionId}`);
           const mensagens = await resp.json();
 
-          // Adiciona apenas mensagens novas
+          // Renderiza APENAS novas mensagens (a partir do ponteiro)
           if (mensagens.length > mensagensRenderizadas) {
             for (let i = mensagensRenderizadas; i < mensagens.length; i++) {
-              // adiciona tudo (user, bot e human) sem apagar o chat
-              addMessage(mensagens[i].text, mensagens[i].sender);
+              const m = mensagens[i];
+              addMessage(m.text, m.sender);
             }
             mensagensRenderizadas = mensagens.length;
           }
         } catch (err) {
           console.error("Erro ao buscar mensagens:", err);
         }
-      }, 3000);
+      }, 2000);
     }
+
 
 
     function toggleDarkMode(event) {
