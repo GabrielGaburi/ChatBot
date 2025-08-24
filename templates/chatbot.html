@@ -39,6 +39,7 @@
 
     #chat-toggle {
       position: fixed;
+      /* continua fixo no canto da tela */
       bottom: 20px;
       right: 20px;
       background-color: var(--primary);
@@ -51,7 +52,31 @@
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
       z-index: 9999;
       transition: background-color 0.3s ease;
+
+      display: flex;
+      /* garante que o badge acompanhe o botão */
+      align-items: center;
+      justify-content: center;
     }
+
+    #chat-toggle span#chat-notification {
+      position: absolute;
+      transform: translate(10px, -10px);
+      /* desloca pro canto superior direito */
+      background: #ef4444;
+      /* vermelho vibrante */
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 4px 7px;
+      border-radius: 999px;
+      display: none;
+      /* começa invisível */
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+
+
+
 
     #chat-toggle:hover {
       background-color: #4338ca;
@@ -399,12 +424,37 @@
     .chatbox.dark-mode .typing-indicator {
       background: var(--dark-bot-bg);
     }
+
+    /* Badge de notificação no botão do chat */
+
+
+    #chat-notification {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #ef4444;
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 3px 6px;
+      border-radius: 999px;
+      display: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
   </style>
 </head>
 
 <body>
 
-  <button id="chat-toggle"><i class="fas fa-comment-dots"></i> Precisa de ajuda?</button>
+  <button id="chat-toggle">
+    <i id="chat-icon" class="fas fa-comment-dots"></i>
+    <span id="chat-label">Precisa de ajuda?</span>
+    <span id="chat-notification" style="display:none">1</span>
+  </button>
+
+
+
+
 
   <div class="chatbox" id="chatbox">
     <div class="chatbox-header">
@@ -431,6 +481,10 @@
     const chatbox = document.getElementById("chatbox");
     const toggleBtn = document.getElementById("chat-toggle");
     const chat = document.getElementById("chat");
+    const chatToggle = document.getElementById("chat-toggle");
+    const chatNotification = document.getElementById("chat-notification");
+    const chatIcon = document.getElementById("chat-icon");
+    const chatLabel = document.getElementById("chat-label");
     let atendimentoHumano = false; // controle local
 
     // gera ou recupera id único da sessão
@@ -443,14 +497,30 @@
       return id;
     }
 
+    function showNotification() {
+      if (!chatbox.classList.contains("active")) { // só mostra se o chat estiver fechado
+        chatNotification.style.display = "inline-block";
+      }
+    }
 
+    // Função para esconder notificação
+    function clearNotification() {
+      chatNotification.style.display = "none";
+    }
+
+    // Quando o chat é aberto, remove a notificação
+    chatToggle.addEventListener("click", () => {
+      if (chatbox.classList.contains("active")) {
+        clearNotification();
+      }
+    });
 
     // abrir/fechar chat
     toggleBtn.addEventListener("click", () => {
-      chatbox.classList.toggle("active");
-      toggleBtn.innerHTML = chatbox.classList.contains("active")
-        ? '<i class="fas fa-times"></i> Fechar chat'
-        : '<i class="fas fa-comment-dots"></i> Precisa de ajuda?';
+      const opened = chatbox.classList.toggle("active");
+      chatIcon.className = opened ? "fas fa-times" : "fas fa-comment-dots";
+      chatLabel.textContent = opened ? "Fechar chat" : "Precisa de ajuda?";
+      if (opened) chatNotification.style.display = "none"; // limpa o badge ao abrir
     });
 
     function scrollToBottom() {
@@ -519,6 +589,12 @@
         content.textContent = text;
       }
       scrollToBottom();
+
+
+      // 🚨 Só notifica se a mensagem NÃO for do usuário
+      if (type !== "user") {
+        showNotification();
+      }
     }
 
     function quickReply(text) {
