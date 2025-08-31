@@ -1,0 +1,206 @@
+/* RESET E BASE */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  background-color: #f4f7fa;
+  color: #333;
+  line-height: 1.6;
+}
+
+a {
+  color: #3d5a80;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* CABEÇALHO */
+header {
+  background-color: #0c465a;
+  color: rgb(243, 241, 241);
+  padding: 30px 20px;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+}
+
+nav ul {
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  padding: 0;
+}
+
+nav li a {
+  font-weight: bold;
+  color: #ffffffcc;
+}
+
+nav li a:hover {
+  color: rgb(255, 255, 255);
+}
+
+/* GRADE PRINCIPAL */
+main {
+  padding: 40px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+/* CARTÕES */
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.card img,
+.card .icon {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.card .icon {
+  background-color: #edf2f8;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.card h2 {
+  font-size: 1.1rem;
+  color: #3d5a80;
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.card button {
+  background-color: #3d5a80;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+  font-size: 0.9rem;
+}
+
+.card button:hover {
+  background-color: #2b3f5d;
+}
+
+/* FORMULÁRIO DE LOGIN */
+.login form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.login input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.login button {
+  background-color: #2e8b57;
+}
+
+.login button:hover {
+  background-color: #256b46;
+}
+
+.login .register {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+/* RODAPÉ */
+footer {
+  text-align: center;
+  padding: 20px;
+  background-color: #243e5c;
+  color: white;
+  margin-top: 40px;
+}
+
+/* PÁGINA DE NOTÍCIAS */
+.noticias-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.noticia {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.noticia h2 {
+  color: #3d5a80;
+  margin-bottom: 10px;
+}
+
+.noticia p {
+  margin-bottom: 15px;
+  font-size: 0.95rem;
+}
+
+.btn-leia {
+  display: inline-block;
+  padding: 8px 14px;
+  background-color: #3d5a80;
+  color: white;
+  border-radius: 6px;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.btn-leia:hover {
+  background-color: #2b3f5d;
+}

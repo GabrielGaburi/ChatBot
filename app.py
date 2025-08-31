@@ -3,6 +3,8 @@ import os
 import uuid
 from dotenv import load_dotenv
 import openai
+import re
+import unicodedata
 
 # ---------------- Config ---------------- #
 load_dotenv()
@@ -37,14 +39,122 @@ SYSTEM_PROMPT = (
 )
 
 # ---------------- Estado em memória ---------------- #
-usuarios_humano = set()  # sessões que pediram profissional
+usuarios_humano = set()  # sessões que pediram profissional (ou foram auto-encaminhadas)
 # sessions: { session_id: [ {id: "uuid", sender: "user"/"bot"/"human", text: "..."} ] }
 sessions = {}
+
+# ---------------- Utilidades: detecção de criticidade ---------------- #
+def _normalize_base(s: str) -> str:
+    s = s or ""
+    s = s.lower()
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")  # remove acentos
+    s = re.sub(r"[’'`´]", "'", s)
+    s = re.sub(r"[^\w\s'!?💔😭😢😞]", " ", s, flags=re.UNICODE)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+def _leet_to_plain(s: str) -> str:
+    return (s.replace("0", "o")
+             .replace("1", "i")
+             .replace("3", "e")
+             .replace("4", "a")
+             .replace("5", "s")
+             .replace("7", "t"))
+
+def _collapse_repeats(s: str) -> str:
+    return re.sub(r"(.)\1{2,}", r"\1\1", s)
+
+def _normalize_all(s: str) -> str:
+    return _collapse_repeats(_leet_to_plain(_normalize_base(s)))
+
+def _lev_dist(a: str, b: str) -> int:
+    dp = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        prev = i - 1
+        dp[0] = i
+        for j, cb in enumerate(b, 1):
+            tmp = dp[j]
+            dp[j] = prev if ca == cb else 1 + min(prev, dp[j], dp[j-1])
+            prev = tmp
+    return dp[-1]
+
+def _fuzzy_includes(hay: str, needle: str, max_edits: int = 1) -> bool:
+    if needle in hay:
+        return True
+    n = len(needle)
+    if n == 0 or len(hay) < n:
+        return False
+    max_edits = min(max_edits + n // 12, 2)
+    for i in range(0, len(hay) - n + 1):
+        if _lev_dist(hay[i:i+n], needle) <= max_edits:
+            return True
+    return False
+
+def _fuzzy_any(hay: str, variants, max_edits: int = 1) -> bool:
+    return any(_fuzzy_includes(hay, _normalize_all(v), max_edits) for v in variants if v)
+
+CRITICAL_PATTERNS = {
+    "suicidio": [
+        "suicidio","me matar","tirar minha vida","acabar com tudo",
+        "quero morrer","sem vontade de viver","nao quero mais viver",
+        "pensando em morrer","ideacao suicida","quero sumir"
+    ],
+    "distress": [
+        "nao aguento","nao aguento mais","desespero","sem saida","sem saída",
+        "to mal","tô mal","muito mal","pior dia","crise de panico","crise panico",
+        "ataque de panico","ansiedade forte","desesperado","no fundo do poco","no fundo do poço",
+        "sou um lixo","nao presto","nao vejo futuro","sofrendo demais"
+    ],
+    "help": [
+        "quero ajuda","preciso de ajuda","socorro","me ajuda","ajuda por favor",
+        "urgente","falar com alguem","conversar com alguem","preciso falar com alguem",
+        "posso falar com alguem","quero conversar com alguem","apoio agora"
+    ],
+    "gambling_crisis": [
+        "nao consigo parar de apostar","nao consigo parar","compulsao por apostar","compulsao por jogo",
+        "recaida","recaída","voltei a apostar","perdi tudo","perdi meu salario","perdi meu salário",
+        "endividado","muita divida","muitas dividas","divida com agiota","cobranca pesada",
+        "quebrado","rompi limite"
+    ],
+    "family": [
+        "meu marido aposta","minha esposa aposta","meu filho viciado","minha filha viciada",
+        "meu pai viciado","minha mae viciada","meu irmão viciado","minha irmã viciada",
+        "meu namorado aposta","minha namorada aposta","alguem proximo viciado","alguém próximo viciado",
+        "ajuda para familia","sou familiar de viciado","sou parente de viciado"
+    ]
+}
+CORE_SIGNALS = [
+    "me matar","acabar com tudo","quero morrer","nao aguento mais",
+    "preciso de ajuda","socorro","sem saida","muito mal",
+    "nao consigo parar","perdi tudo","endividado"
+]
+
+def detect_critical(text: str) -> bool:
+    if not text or not text.strip():
+        return False
+    raw = text
+    n = _normalize_all(raw)
+    # emojis fortes
+    if any(e in raw for e in ["😭", "💔", "😢", "😞"]):
+        return True
+    # categorias
+    for variants in CRITICAL_PATTERNS.values():
+        if _fuzzy_any(n, variants, 1):
+            return True
+    # núcleo com maior tolerância
+    if _fuzzy_any(n, CORE_SIGNALS, 2):
+        return True
+    return False
 
 # ---------------- Rotas de páginas ---------------- #
 @app.route("/")
 def home():
-    return render_template("chatbot.html")
+    return render_template("index.html")
+
+@app.route("/noticias")
+def noticias():
+    return render_template("noticias.html")
 
 @app.route("/painel")
 def painel():
@@ -132,15 +242,29 @@ def send():
     sessions[session_id].append({"id": user_msg_id, "sender": "user", "text": user_message})
     print(f"[USUÁRIO {session_id}] {user_message}")
 
-    # se aguardando humano, IA não responde
+    # se já aguardando humano, IA não responde
     if session_id in usuarios_humano:
         print(f"[AGUARDANDO PROFISSIONAL] {session_id} - IA desligada")
         return jsonify({
             "reply": "Um profissional está atendendo você. Aguarde a resposta dele aqui.",
-            "id": user_msg_id  # útil pro front deduplicar se quiser
+            "id": user_msg_id
         })
 
-    # resposta da IA com prompt otimizado
+    # 🚨 AUTO-ENCAMINHAMENTO (detecção de criticidade)
+    if detect_critical(user_message):
+        usuarios_humano.add(session_id)
+        sessions[session_id].append({
+            "id": str(uuid.uuid4()),
+            "sender": "bot",
+            "text": "Sinto muito que você esteja passando por isso. Vou acionar um profissional agora. Fique aqui, ele já responde."
+        })
+        print(f"[AUTO-HANDOFF] Sessão {session_id} marcada para atendimento humano")
+        return jsonify({
+            "reply": "Estou aqui com você. Acionei um profissional para continuar essa conversa com cuidado, tudo bem?",
+            "handoff": True
+        })
+
+    # resposta normal da IA
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -163,7 +287,6 @@ def send():
         return jsonify({"reply": bot_reply, "id": bot_msg_id})
 
     except Exception as e:
-        # não quebra o app; devolve erro legível pro front
         print(f"[ERRO IA] {e}")
         return jsonify({"reply": f"Erro: {str(e)}"})
 
