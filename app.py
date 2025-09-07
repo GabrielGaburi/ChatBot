@@ -163,6 +163,11 @@ def noticias():
 def painel():
     return render_template("painel.html")
 
+@app.route("/contato")
+def contato():
+    return render_template("contato.html")
+
+
 @app.get("/health")
 def health():
     return "OK"

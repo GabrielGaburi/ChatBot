@@ -1,0 +1,517 @@
+<!-- ====== Botão flutuante do chat ====== -->
+<button id="chat-toggle"
+    style="position: fixed; bottom: 20px; right: 20px; background: #4f46e5; color: #fff; border: none; padding: 12px 18px; border-radius: 24px; font-size: 14px; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,.08); z-index:10000; display:flex; align-items:center; gap:8px;">
+    <i id="chat-icon" class="fas fa-comment-dots"></i>
+    <span id="chat-label">Precisa de ajuda?</span>
+    <span id="chat-notification"
+        style="display:none; position:absolute; top:-6px; right:-6px; background:#ef4444; color:#fff; font-size:11px; font-weight:700; padding:3px 6px; border-radius:999px; box-shadow:0 2px 6px rgba(0,0,0,.2);">1</span>
+</button>
+
+<!-- ====== Caixa do Chat ====== -->
+<div class="chatbox" id="chatbox"
+    style="position: fixed; right: 20px; bottom: 80px; width: 380px; height: 540px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.1); flex-direction: column; background: #fff; overflow: hidden; z-index: 9999;">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f3f4f6;
+            --dark-bg: #2d3748;
+            --dark-input: #374151;
+        }
+
+        /* 🔹 Controle de visibilidade apenas por classe */
+        .chatbox {
+            display: none;
+        }
+
+        .chatbox.active {
+            display: flex;
+        }
+
+        @media (max-width: 500px) {
+            .chatbox {
+                right: 0;
+                bottom: 0;
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+            }
+        }
+
+        .chatbox-header {
+            background: var(--primary);
+            color: #fff;
+            padding: 16px;
+            font-weight: 600;
+            text-align: center;
+            position: relative;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .chatbox-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            background: #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            scroll-behavior: smooth;
+        }
+
+        .chatbox.dark-mode {
+            background: var(--dark-bg);
+        }
+
+        .chatbox.dark-mode .chatbox-messages {
+            background: var(--dark-bg);
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 14px;
+            max-width: 100%;
+        }
+
+        .bot-message {
+            flex-direction: row;
+        }
+
+        .user-message {
+            flex-direction: row-reverse;
+            align-self: flex-end;
+        }
+
+        .human-message {
+            flex-direction: row;
+        }
+
+        .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            margin: 0 10px;
+            object-fit: cover;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .1);
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.4;
+            color: #fff;
+            /* texto branco por padrão nos balões */
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+        }
+
+        .bot-message .message-content {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+
+        .user-message .message-content {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        .human-message .message-content {
+            background: linear-gradient(135deg, #f59e0b, #f97316);
+        }
+
+        /* ✅ Modo escuro: garanta contraste (texto branco) em todos os balões */
+        .chatbox.dark-mode .bot-message .message-content {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: #fff;
+        }
+
+        .chatbox.dark-mode .user-message .message-content {
+            background: linear-gradient(135deg, #059669, #0ea5e9);
+            color: #fff;
+        }
+
+        .chatbox.dark-mode .human-message .message-content {
+            background: linear-gradient(135deg, #d97706, #ea580c);
+            color: #fff;
+        }
+
+        .chatbox-input {
+            display: flex;
+            border-top: 1px solid #e5e7eb;
+            background: #fff;
+            padding: 10px;
+        }
+
+        .chatbox.dark-mode .chatbox-input {
+            background: var(--dark-input);
+        }
+
+        .chatbox-input input {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            font-size: 14px;
+            outline: none;
+            background: transparent;
+            color: inherit;
+        }
+
+        /* ✅ Modo escuro: texto e placeholder visíveis */
+        .chatbox.dark-mode .chatbox-input input {
+            color: #fff;
+        }
+
+        .chatbox.dark-mode .chatbox-input input::placeholder {
+            color: #e5e7eb;
+        }
+
+        .chatbox-input button {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 0 20px;
+            cursor: pointer;
+            border-radius: 12px;
+            margin-left: 10px;
+        }
+
+        .quick-replies {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px 16px;
+            background: #fff;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* ✅ Modo escuro: plano de fundo mais escuro nas quick replies */
+        .chatbox.dark-mode .quick-replies {
+            background: #374151;
+            border-top-color: #475569;
+        }
+
+        .quick-replies button {
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 12px;
+            padding: 10px 16px;
+            cursor: pointer;
+            border: none;
+            color: #fff;
+        }
+
+        .quick-replies button:nth-child(1) {
+            background: linear-gradient(135deg, #34d399, #059669);
+        }
+
+        .quick-replies button:nth-child(2) {
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+        }
+
+        .quick-replies button:nth-child(3) {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #fff7ed;
+        }
+
+        .privacy-message {
+            text-align: center;
+            font-size: 11px;
+            padding: 6px;
+            color: #6b7280;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* ✅ Modo escuro: mensagem de privacidade legível */
+        .chatbox.dark-mode .privacy-message {
+            background: #2d3748;
+            color: #cbd5e1;
+            border-top-color: #475569;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            background: #e0e7ff;
+            border-radius: 18px;
+            max-width: 70px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: .2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: .4s;
+        }
+
+        @keyframes typing {
+
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+                opacity: .4;
+            }
+
+            30% {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+        }
+    </style>
+
+    <div class="chatbox-header">
+        🤖 Apoio Virtual
+        <button class="theme-toggle" onclick="toggleDarkMode(event)">🌙</button>
+    </div>
+
+    <div class="chatbox-messages" id="chat"></div>
+
+    <div class="quick-replies" id="quickReplies">
+        <button onclick="quickReply('Estou viciado em apostas.')">🎯 <span>Estou viciado em apostas.</span></button>
+        <button onclick="quickReply('Alguém próximo a mim está com problemas de vícios.')">👥 <span>Alguém próximo a mim
+                está com problemas de vícios.</span></button>
+        <button onclick="transferToHuman()">🧑‍⚕️ <span>Falar com um profissional</span></button>
+    </div>
+
+    <div class="chatbox-input">
+        <input type="text" id="userInput" placeholder="Digite aqui..." />
+        <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+
+    <div class="privacy-message">Este chat é 100% anônimo. Nenhuma conversa é armazenada.</div>
+</div>
+
+<script>
+    // ===== CONFIG =====
+    const API_BASE = ""; // mesmo host/porta
+
+    // ===== Estado/refs =====
+    const chatbox = document.getElementById("chatbox");
+    const chatToggle = document.getElementById("chat-toggle");
+    const chat = document.getElementById("chat");
+    const chatNotification = document.getElementById("chat-notification");
+    const chatIcon = document.getElementById("chat-icon");
+    const chatLabel = document.getElementById("chat-label");
+    let atendimentoHumano = false;
+    let pollTimer = null;
+    let mensagensRenderizadas = 0;
+
+    function getSessionId() {
+        let id = sessionStorage.getItem("session_id");
+        if (!id) { id = (crypto.randomUUID?.() || String(Date.now())); sessionStorage.setItem("session_id", id); }
+        return id;
+    }
+    function showNotification() { if (!chatbox.classList.contains("active")) chatNotification.style.display = "inline-block"; }
+    function clearNotification() { chatNotification.style.display = "none"; }
+
+    chatToggle.addEventListener("click", () => {
+        const opened = chatbox.classList.toggle("active");
+        chatIcon.className = opened ? "fas fa-times" : "fas fa-comment-dots";
+        chatLabel.textContent = opened ? "Fechar chat" : "Precisa de ajuda?";
+        if (opened) clearNotification();
+    });
+
+    function scrollToBottom() { setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 50); }
+    function typeEffect(el, text, delay = 30) {
+        let i = 0;
+        const it = setInterval(() => {
+            if (i < text.length) { el.textContent += text.charAt(i++); scrollToBottom(); }
+            else clearInterval(it);
+        }, delay);
+    }
+    function showTypingIndicator() {
+        const wrap = document.createElement("div"); wrap.className = "message bot-message"; wrap.id = "typing-indicator";
+        const avatar = document.createElement("img"); avatar.className = "avatar"; avatar.src = "{{ url_for('static', filename='img/caozinho.jpg') }}";
+        const ti = document.createElement("div"); ti.className = "typing-indicator";
+        for (let i = 0; i < 3; i++) { const d = document.createElement("div"); d.className = "typing-dot"; ti.appendChild(d); }
+        wrap.appendChild(avatar); wrap.appendChild(ti); chat.appendChild(wrap); scrollToBottom();
+    }
+    function hideTypingIndicator() { const el = document.getElementById("typing-indicator"); if (el) el.remove(); }
+
+    function addMessage(text, type = "bot") {
+        const msg = document.createElement("div"); msg.className = `message ${type}-message`;
+        const avatar = document.createElement("img"); avatar.className = "avatar";
+        if (type === "user") avatar.src = "{{ url_for('static', filename='img/imagens.jfif') }}";
+        else if (type === "human") avatar.src = "{{ url_for('static', filename='img/images.png') }}";
+        else avatar.src = "{{ url_for('static', filename='img/caozinho.jpg') }}";
+        const content = document.createElement("div"); content.className = "message-content";
+        msg.appendChild(avatar); msg.appendChild(content); chat.appendChild(msg);
+        if (type === "bot") typeEffect(content, text); else content.textContent = text;
+        scrollToBottom(); if (type !== "user") showNotification();
+    }
+
+    // Enter para enviar
+    document.addEventListener("DOMContentLoaded", () => {
+        const input = document.getElementById("userInput");
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } });
+    });
+
+    function quickReply(text) {
+        const area = document.getElementById("quickReplies");
+        if (area) area.style.display = "none";
+        const input = document.getElementById("userInput");
+        input.value = text; sendMessage();
+    }
+
+    // detector simples
+    function normalizeBase(s) { return (s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[’'`´]/g, "'").replace(/[^\p{L}\p{N}\s'!?💔😭😢😞]/gu, " ").replace(/\s+/g, " ").trim(); }
+    function leetToPlain(s) { return s.replace(/0/g, "o").replace(/1/g, "i").replace(/3/g, "e").replace(/4/g, "a").replace(/5/g, "s").replace(/7/g, "t"); }
+    function collapseRepeats(s) { return s.replace(/(.)\1{2,}/g, "$1$1"); }
+    function normalizeAll(s) { return collapseRepeats(leetToPlain(normalizeBase(s))); }
+    function containsCriticalKeyword(t) { const n = normalizeAll(t); return n.includes("quero ajuda") || n.includes("preciso de ajuda") || n.includes("socorro") || n.includes("nao consigo parar") || n.includes("perdi tudo") || n.includes("endividado"); }
+
+    async function sendMessage() {
+        const input = document.getElementById("userInput");
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+
+        // 🔹 Sempre esconder as opções rápidas quando o usuário enviar algo
+        const quick = document.getElementById("quickReplies");
+        if (quick) quick.style.display = "none";
+
+        // Mostra a própria mensagem do usuário no chat (antes de enviar ao backend)
+        if (!atendimentoHumano) addMessage(message, "user");
+
+        // Se já está em atendimento humano, apenas encaminha a mensagem
+        if (atendimentoHumano) {
+            await fetch(`${API_BASE}/send`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message, session_id: getSessionId() })
+            });
+            return;
+        }
+
+        // Se detectar palavras críticas, oferta handoff
+        if (containsCriticalKeyword(message)) {
+            addMessage("Sinto muito por você estar passando por isso. Posso chamar um profissional para conversar com você agora mesmo. 💙", "bot");
+            // Mostra só o botão de handoff
+            if (quick) {
+                quick.innerHTML = `<button onclick="transferToHuman()">🧑‍⚕️ Falar com um profissional</button>`;
+                quick.style.display = "flex";
+            }
+            return;
+        }
+
+        // Fluxo normal: chama IA
+        showTypingIndicator();
+        try {
+            const r = await fetch(`${API_BASE}/send`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message, session_id: getSessionId() })
+            });
+
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const data = await r.json();
+            hideTypingIndicator();
+
+            // Servidor sinalizou handoff automático
+            if (data.handoff) {
+                atendimentoHumano = true;
+                const sid = getSessionId();
+                const msgs = await fetch(`${API_BASE}/mensagens/${sid}`).then(x => x.json());
+                mensagensRenderizadas = msgs.length;
+                const last = msgs[msgs.length - 1];
+                if (last) addMessage(last.text, last.sender);
+                iniciarPollingHumano();
+                return;
+            }
+
+            // Resposta normal da IA
+            if (!atendimentoHumano) {
+                const texto = (data && typeof data.reply === "string") ? data.reply.trim() : "";
+                addMessage(texto || "Estou aqui para te ouvir. 💙", "bot");
+            }
+        } catch (e) {
+            hideTypingIndicator();
+            console.error(e);
+            addMessage("Erro ao se comunicar com o servidor.", "bot");
+        }
+    }
+
+    async function transferToHuman() {
+        document.getElementById("quickReplies").style.display = "none";
+        atendimentoHumano = true; hideTypingIndicator();
+        try {
+            await fetch(`${API_BASE}/transfer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: getSessionId() }) });
+            const sid = getSessionId();
+            const msgs = await fetch(`${API_BASE}/mensagens/${sid}`).then(x => x.json());
+            mensagensRenderizadas = msgs.length;
+            const last = msgs[msgs.length - 1]; if (last) addMessage(last.text, last.sender);
+            iniciarPollingHumano();
+        } catch (e) {
+            addMessage("Não foi possível solicitar um profissional agora.", "bot");
+            atendimentoHumano = false;
+        }
+    }
+
+    function iniciarPollingHumano() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(async () => {
+            if (!atendimentoHumano) return;
+            try {
+                const sid = getSessionId();
+                const lista = await fetch(`${API_BASE}/mensagens/${sid}`).then(x => x.json());
+                if (lista.length > mensagensRenderizadas) {
+                    for (let i = mensagensRenderizadas; i < lista.length; i++) {
+                        const m = lista[i]; addMessage(m.text, m.sender);
+                    }
+                    mensagensRenderizadas = lista.length;
+                }
+            } catch (err) { console.error("Erro ao buscar mensagens:", err); }
+        }, 2000);
+    }
+
+    function toggleDarkMode(e) {
+        e.stopPropagation();
+        chatbox.classList.toggle("dark-mode");
+        const isDark = chatbox.classList.contains("dark-mode");
+        localStorage.setItem("chat-dark-mode", isDark);
+        updateThemeIcon(isDark);
+    }
+    function loadTheme() {
+        const isDark = localStorage.getItem("chat-dark-mode") === "true";
+        if (isDark) chatbox.classList.add("dark-mode");
+        updateThemeIcon(isDark);
+    }
+    function updateThemeIcon(isDark) {
+        const iconBtn = document.querySelector(".theme-toggle");
+        if (iconBtn) iconBtn.textContent = isDark ? "🌞" : "🌙";
+    }
+
+    window.addEventListener("load", async () => {
+        loadTheme();
+        // reinicia sessão a cada reload (mantenha se fizer sentido)
+        sessionStorage.removeItem("session_id");
+        const sid = getSessionId();
+        const res = await fetch(`${API_BASE}/status_sessao/${sid}`); const data = await res.json();
+        if (data.humano) { atendimentoHumano = true; iniciarPollingHumano(); addMessage("Você será atendido por um profissional em instantes.", "bot"); }
+        else { chat.innerHTML = ""; mensagensRenderizadas = 0; addMessage("Precisa de ajuda ou quer conversar?", "bot"); }
+    });
+
+    // expõe funções para onclick
+    window.quickReply = quickReply;
+    window.sendMessage = sendMessage;
+    window.transferToHuman = transferToHuman;
+    window.toggleDarkMode = toggleDarkMode;
+</script>
