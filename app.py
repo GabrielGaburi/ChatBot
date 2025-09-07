@@ -1,21 +1,27 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import uuid
-from dotenv import load_dotenv
-import openai
 import re
 import unicodedata
+from pathlib import Path
+from dotenv import load_dotenv
+from openai import OpenAI  # SDK novo 1.x
 
-# ---------------- Config ---------------- #
-load_dotenv()
+# ============================ CONFIG ============================ #
+# Carrega .env ao lado do app.py (robusto mesmo se o CWD variar)
+ENV_PATH = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH, override=True)
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY não encontrada no ambiente. Defina no .env ou nas variáveis do sistema.")
-openai.api_key = OPENAI_API_KEY
+    raise RuntimeError(f"OPENAI_API_KEY não encontrada. Coloque no .env em {ENV_PATH}")
+
+# Cliente OpenAI (SDK 1.x)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = Flask(__name__)
 
-# Prompt do sistema (centralizado)
+# ============================ SYSTEM PROMPT ============================ #
 SYSTEM_PROMPT = (
     "Você é um amigo próximo, empático e confiável. "
     "Sua função é conversar e oferecer apoio emocional para pessoas afetadas pelo vício em apostas — "
@@ -38,12 +44,12 @@ SYSTEM_PROMPT = (
     "Fazer a pessoa sentir-se compreendida, acolhida e menos sozinha neste momento."
 )
 
-# ---------------- Estado em memória ---------------- #
-usuarios_humano = set()  # sessões que pediram profissional (ou foram auto-encaminhadas)
-# sessions: { session_id: [ {id: "uuid", sender: "user"/"bot"/"human", text: "..."} ] }
+# ============================ ESTADO ============================ #
+usuarios_humano = set()      # sessões que pediram profissional (ou auto-encaminhadas)
+# sessions: { session_id: [ {id:"uuid", sender:"user"/"bot"/"human", text:"..."} ] }
 sessions = {}
 
-# ---------------- Utilidades: detecção de criticidade ---------------- #
+# ============================ DETECÇÃO DE CRITICIDADE ============================ #
 def _normalize_base(s: str) -> str:
     s = s or ""
     s = s.lower()
@@ -135,19 +141,16 @@ def detect_critical(text: str) -> bool:
         return False
     raw = text
     n = _normalize_all(raw)
-    # emojis fortes
     if any(e in raw for e in ["😭", "💔", "😢", "😞"]):
         return True
-    # categorias
     for variants in CRITICAL_PATTERNS.values():
         if _fuzzy_any(n, variants, 1):
             return True
-    # núcleo com maior tolerância
     if _fuzzy_any(n, CORE_SIGNALS, 2):
         return True
     return False
 
-# ---------------- Rotas de páginas ---------------- #
+# ============================ ROTAS DE PÁGINA ============================ #
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -160,7 +163,11 @@ def noticias():
 def painel():
     return render_template("painel.html")
 
-# ---------------- APIs do painel ---------------- #
+@app.get("/health")
+def health():
+    return "OK"
+
+# ============================ APIS DO PAINEL ============================ #
 @app.route("/lista_sessoes")
 def lista_sessoes():
     return jsonify(list(usuarios_humano))
@@ -192,7 +199,7 @@ def perfil_meu():
     }
     return jsonify(perfil)
 
-# ---------------- APIs do usuário ---------------- #
+# ============================ APIS DO USUÁRIO ============================ #
 @app.route("/status_sessao/<session_id>")
 def status_sessao(session_id):
     return jsonify({"humano": session_id in usuarios_humano})
@@ -234,6 +241,8 @@ def send():
 
     if not session_id:
         return jsonify({"reply": "Sessão não identificada."}), 400
+    if not user_message:
+        return jsonify({"reply": "Mensagem vazia."}), 400
 
     sessions.setdefault(session_id, [])
 
@@ -250,7 +259,7 @@ def send():
             "id": user_msg_id
         })
 
-    # 🚨 AUTO-ENCAMINHAMENTO (detecção de criticidade)
+    # AUTO-ENCAMINHAMENTO (detecção de criticidade)
     if detect_critical(user_message):
         usuarios_humano.add(session_id)
         sessions[session_id].append({
@@ -264,17 +273,18 @@ def send():
             "handoff": True
         })
 
-    # resposta normal da IA
+    # RESPOSTA NORMAL DA IA (SDK 1.x)
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",  # escolha um modelo disponível pra sua conta
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
             ],
-            temperature=0.7
+            temperature=0.7,
+            timeout=30
         )
-        bot_reply = response.choices[0].message.content.strip()
+        bot_reply = resp.choices[0].message.content.strip()
 
         bot_msg_id = str(uuid.uuid4())
         sessions[session_id].append({
@@ -287,9 +297,11 @@ def send():
         return jsonify({"reply": bot_reply, "id": bot_msg_id})
 
     except Exception as e:
+        # Loga e devolve erro visível
         print(f"[ERRO IA] {e}")
-        return jsonify({"reply": f"Erro: {str(e)}"})
+        return jsonify({"reply": f"Erro: {str(e)}"}), 500
 
+# ============================ MAIN ============================ #
 if __name__ == "__main__":
-    # Em produção, use um servidor WSGI (gunicorn/uwsgi) e desative debug.
-    app.run(debug=True)
+    # Em produção use WSGI (gunicorn/uwsgi) e debug=False
+    app.run(host="127.0.0.1", port=5000, debug=True)
