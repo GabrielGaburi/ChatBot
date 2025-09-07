@@ -326,8 +326,10 @@
         const opened = chatbox.classList.toggle("active");
         chatIcon.className = opened ? "fas fa-times" : "fas fa-comment-dots";
         chatLabel.textContent = opened ? "Fechar chat" : "Precisa de ajuda?";
+        localStorage.setItem("chat-open", opened ? "1" : "0"); // <-- salva estado
         if (opened) clearNotification();
     });
+
 
     function scrollToBottom() { setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 50); }
     function typeEffect(el, text, delay = 30) {
@@ -346,17 +348,37 @@
     }
     function hideTypingIndicator() { const el = document.getElementById("typing-indicator"); if (el) el.remove(); }
 
-    function addMessage(text, type = "bot") {
-        const msg = document.createElement("div"); msg.className = `message ${type}-message`;
-        const avatar = document.createElement("img"); avatar.className = "avatar";
+    function addMessage(text, type = "bot", { animate = true, notify = true } = {}) {
+        const msg = document.createElement("div");
+        msg.className = `message ${type}-message`;
+
+        const avatar = document.createElement("img");
+        avatar.className = "avatar";
         if (type === "user") avatar.src = "{{ url_for('static', filename='img/imagens.jfif') }}";
         else if (type === "human") avatar.src = "{{ url_for('static', filename='img/images.png') }}";
         else avatar.src = "{{ url_for('static', filename='img/caozinho.jpg') }}";
-        const content = document.createElement("div"); content.className = "message-content";
-        msg.appendChild(avatar); msg.appendChild(content); chat.appendChild(msg);
-        if (type === "bot") typeEffect(content, text); else content.textContent = text;
-        scrollToBottom(); if (type !== "user") showNotification();
+
+        const content = document.createElement("div");
+        content.className = "message-content";
+
+        msg.appendChild(avatar);
+        msg.appendChild(content);
+        chat.appendChild(msg);
+
+        if (animate && type === "bot") {
+            // animação só quando for resposta “nova”
+            typeEffect(content, text);
+        } else {
+            // histórico: sem animação
+            content.textContent = text;
+        }
+
+        scrollToBottom();
+
+        // notificação só se não for histórico e não for mensagem do usuário
+        if (notify && type !== "user") showNotification();
     }
+
 
     // Enter para enviar
     document.addEventListener("DOMContentLoaded", () => {
@@ -366,10 +388,16 @@
 
     function quickReply(text) {
         const area = document.getElementById("quickReplies");
-        if (area) area.style.display = "none";
+        if (area) {
+            area.style.display = "none";
+        }
+        localStorage.setItem("quick-hidden", "1"); // 🔹 persiste
+
         const input = document.getElementById("userInput");
-        input.value = text; sendMessage();
+        input.value = text;
+        sendMessage();
     }
+
 
     // detector simples
     function normalizeBase(s) { return (s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[’'`´]/g, "'").replace(/[^\p{L}\p{N}\s'!?💔😭😢😞]/gu, " ").replace(/\s+/g, " ").trim(); }
@@ -384,14 +412,20 @@
         if (!message) return;
         input.value = "";
 
-        // 🔹 Sempre esconder as opções rápidas quando o usuário enviar algo
+        // 🔹 Esconde as opções rápidas e PERSISTE o estado
         const quick = document.getElementById("quickReplies");
-        if (quick) quick.style.display = "none";
+        if (quick) {
+            quick.style.display = "none";
+        }
+        localStorage.setItem("quick-hidden", "1"); // << mantém oculto ao trocar de página
 
-        // Mostra a própria mensagem do usuário no chat (antes de enviar ao backend)
+        // Mostra a mensagem do usuário no chat
         if (!atendimentoHumano) addMessage(message, "user");
 
-        // Se já está em atendimento humano, apenas encaminha a mensagem
+        // 🔹 Mantém o chat aberto entre páginas
+        localStorage.setItem("chat-open", "1");
+
+        // Se já está em atendimento humano, apenas encaminha a msg
         if (atendimentoHumano) {
             await fetch(`${API_BASE}/send`, {
                 method: "POST",
@@ -401,10 +435,9 @@
             return;
         }
 
-        // Se detectar palavras críticas, oferta handoff
+        // Se detectar termos críticos, oferece handoff e (de propósito) reexibe só o botão
         if (containsCriticalKeyword(message)) {
             addMessage("Sinto muito por você estar passando por isso. Posso chamar um profissional para conversar com você agora mesmo. 💙", "bot");
-            // Mostra só o botão de handoff
             if (quick) {
                 quick.innerHTML = `<button onclick="transferToHuman()">🧑‍⚕️ Falar com um profissional</button>`;
                 quick.style.display = "flex";
@@ -448,6 +481,7 @@
             addMessage("Erro ao se comunicar com o servidor.", "bot");
         }
     }
+
 
     async function transferToHuman() {
         document.getElementById("quickReplies").style.display = "none";
@@ -499,15 +533,88 @@
         if (iconBtn) iconBtn.textContent = isDark ? "🌞" : "🌙";
     }
 
+    function renderHistory(list) {
+        chat.innerHTML = "";
+        mensagensRenderizadas = 0;
+
+        for (const m of list) {
+            const senderType = m.sender === "human" ? "human" : (m.sender || "bot");
+            // histórico: sem animação e sem notificação
+            addMessage(m.text, senderType, { animate: false, notify: false });
+            mensagensRenderizadas++;
+        }
+    }
+
+
+
     window.addEventListener("load", async () => {
+        // 1) Tema
         loadTheme();
-        // reinicia sessão a cada reload (mantenha se fizer sentido)
-        sessionStorage.removeItem("session_id");
+
+        // 2) NÃO apague o session_id — mantém a conversa entre páginas
         const sid = getSessionId();
-        const res = await fetch(`${API_BASE}/status_sessao/${sid}`); const data = await res.json();
-        if (data.humano) { atendimentoHumano = true; iniciarPollingHumano(); addMessage("Você será atendido por um profissional em instantes.", "bot"); }
-        else { chat.innerHTML = ""; mensagensRenderizadas = 0; addMessage("Precisa de ajuda ou quer conversar?", "bot"); }
+
+        try {
+            // 3) Buscar status + histórico do servidor em paralelo
+            const [statusRes, msgsRes] = await Promise.all([
+                fetch(`${API_BASE}/status_sessao/${sid}`),
+                fetch(`${API_BASE}/mensagens/${sid}`)
+            ]);
+            const statusData = await statusRes.json();
+            const msgs = await msgsRes.json();
+
+            // 4) Renderizar histórico (ou mensagem inicial)
+            if (Array.isArray(msgs) && msgs.length > 0) {
+                renderHistory(msgs);
+            } else {
+                chat.innerHTML = "";
+                mensagensRenderizadas = 0;
+                addMessage("Precisa de ajuda ou quer conversar?", "bot");
+
+                // (Opcional) Em conversa nova, você poderia reexibir as quicks:
+                // localStorage.removeItem("quick-hidden");
+            }
+
+            // 5) Estado de atendimento humano
+            atendimentoHumano = !!statusData.humano;
+            if (atendimentoHumano) {
+                iniciarPollingHumano();
+                if (!msgs || msgs.length === 0) {
+                    addMessage("Você será atendido por um profissional em instantes.", "bot");
+                }
+            }
+        } catch (e) {
+            console.error("Falha ao restaurar histórico:", e);
+            chat.innerHTML = "";
+            mensagensRenderizadas = 0;
+            addMessage("Precisa de ajuda ou quer conversar?", "bot");
+        }
+
+        // 6) Restaurar se o chat estava aberto
+        const wasOpen = localStorage.getItem("chat-open") === "1";
+        if (wasOpen) {
+            chatbox.classList.add("active");
+            chatIcon.className = "fas fa-times";
+            chatLabel.textContent = "Fechar chat";
+        } else {
+            chatbox.classList.remove("active");
+            chatIcon.className = "fas fa-comment-dots";
+            chatLabel.textContent = "Precisa de ajuda?";
+        }
+
+        // 7) Restaurar visibilidade das opções rápidas entre páginas
+        const quick = document.getElementById("quickReplies");
+        if (quick) {
+            const wasQuickHidden = localStorage.getItem("quick-hidden") === "1";
+            // Esconde se já estava escondido antes OU se está em atendimento humano
+            if (wasQuickHidden || atendimentoHumano) {
+                quick.style.display = "none";
+            } else {
+                quick.style.display = "flex"; // primeira visita / conversa nova
+            }
+        }
     });
+
 
     // expõe funções para onclick
     window.quickReply = quickReply;
